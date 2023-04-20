@@ -40,8 +40,9 @@ int client_register(char *nombre, char *alias, char *fecha) {
         perror("client: set_connection");
         return -1;
     }
-    char *send = "REGISTER";
-    err = sendMessage(sd, (char *)&send, sizeof(char));
+    char *send ;
+    sprintf(send, "1\n%s\n%s\n%s\n", nombre, alias, fecha);
+    err = sendMessage(sd, send, strlen(send) + 1);
     if (err == -1) {
         perror("client: sendmsg");
         return -1;

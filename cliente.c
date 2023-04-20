@@ -1,4 +1,4 @@
-#include "comunicacion.h"
+#include "comunicacion/comunicacion.h"
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
@@ -7,7 +7,12 @@ int main(int argc, char *argv[]) {
         printf("%s\n", argv[i]);
     }
     printf("%d", argc);
-    client_register(argv[1], argv[2], argv[3]);
+    if (strcmp(argv[1], "REGISTER") == 0) {
+        if (argc == 5) client_register(argv[2], argv[3], argv[4]);
+        else printf("Error: REGISTER <nombre> <alias> <fecha>\n");
+    }
+    else if (strcmp(argv[1], "UNREGISTER") == 0) 
+        printf("UNREGISTER\n");
     // 1 - cogemos datos de la interfaz
 
     // a - ip y socket
