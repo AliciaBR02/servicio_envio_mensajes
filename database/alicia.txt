@@ -1,4 +1,0 @@
-Nombre: hola 
-Alias: alicia 
-Fecha de nacimiento: 25-04-2023
-

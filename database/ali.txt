@@ -1,4 +1,0 @@
-Nombre: alicia 
-Alias: ali 
-Fecha de nacimiento: 24-04-2023
-

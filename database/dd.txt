@@ -1,4 +1,0 @@
-Nombre: cesar 
-Alias: dd 
-Fecha de nacimiento: 25-04-2023
-
