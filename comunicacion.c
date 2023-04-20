@@ -32,7 +32,7 @@ int set_connection() {
 	}
     return 0;
 }
-int client_register() {
+int client_register(char *nombre, char *alias, char *fecha) {
     int err;
     // 1 - establecer conexión con el servidor
     err = set_connection();
@@ -40,7 +40,7 @@ int client_register() {
         perror("client: set_connection");
         return -1;
     }
-    char send = 9;
+    char *send = "REGISTER";
     err = sendMessage(sd, (char *)&send, sizeof(char));
     if (err == -1) {
         perror("client: sendmsg");
@@ -49,6 +49,6 @@ int client_register() {
     // 2 - enviar datos de registro
     // 3 - recibir respuesta
     // 4 - cerrar conexión
-
+    close(sd);
     return 0; // return respuesta del servidor 
 }

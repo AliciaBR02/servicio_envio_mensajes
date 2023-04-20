@@ -34,7 +34,7 @@ class client :
     def  register(user, window):
         window['_SERVER_'].print("s> REGISTER OK")
         #  Write your code here
-        comando = "./cliente 1"
+        comando = "./cliente.out" + " " + client._username + " " + client._alias + " " + client._date
         subprocess.call(comando, shell=True)
         
         return client.RC.ERROR
