@@ -29,11 +29,12 @@ void process_message(petition_t *pet) {
     pthread_mutex_unlock(&mutex_message);
 
     char err, res;
-    //int data = 0;
-
     switch (pet_local.op) {
-        case 1: // register
-            res = registration(pet_local.buffer, pet_local.len);
+        case 1:
+            res = registration(pet_local.nombre, pet_local.alias, pet_local.fecha_nac);
+            break;
+        case 2:
+            res = unregistration(pet_local.alias);
             break;
         default:
             res = -1;
@@ -69,6 +70,8 @@ int main(int argc, char *argv[]) {
     int sd; // socket descriptor of the server
     int sc; // socket connection with client
     char *port;
+
+    char buffer[1024];
 
     if (argc != 3) {
         printf("Usage: %s -p <port>\n", argv[0]);
@@ -131,31 +134,54 @@ int main(int argc, char *argv[]) {
         if (sc == -1) {
             perror("accept");
             close(sd);
+            close(sc);
             return -1;
-        } else {
-            // send a message to the client
-            char connected = 1;
-            err = sendMessage(sc, &connected, sizeof(char));
-            if (err == -1) {
-                perror("server: sendmsg");
-                close(sd);
-                return -1;
-            }
         }
         dprintf(1, "conection accepted\n");
 
         // receive data
-        err2 = recv(sc, buffer, sizeof(buffer), 0);
-        if (err2 == -1) {
+        err = readLine(sc, buffer, sizeof(uint16_t) + 1);
+        if (err == -1) {
+            perror("recv");
+            close(sd);
+            close(sc);
+            return -1;
+        }
+        pet.op = atoi(buffer);
+        dprintf(1, "operation: %d\n", pet.op);
+        memset(buffer, 0, sizeof(uint16_t) + 1);
+
+        err = readLine(sc, buffer, 257);
+        if (err == -1) {
+            perror("recv");
+            close(sd);
+            close(sc);
+            return -1;
+        }
+        strcpy(pet.nombre, buffer);
+        memset(buffer, 0, 257);
+        dprintf(1, "nombre: %s\n", pet.nombre);
+
+        err = readLine(sc, buffer, 257);
+        if (err == -1) {
             perror("recv");
             close(sd);
             return -1;
         }
-        dprintf(1, "received: %s\n", buffer);
+        strcpy(pet.alias, buffer);
+        memset(buffer, 0, 257);
+        dprintf(1, "alias: %s\n", pet.alias);
 
-        pet.op = buffer[0];
-        pet.len = strlen(buffer) - 1;
-        pet.buffer = buffer + 1; // buffer except first character
+        err = readLine(sc, buffer, 257);
+        if (err == -1) {
+            perror("recv");
+            close(sd);
+            return -1;
+        }
+        strcpy(pet.fecha_nac, buffer);
+        memset(buffer, 0, 257);
+        dprintf(1, "fecha_nac: %s\n", pet.fecha_nac);
+
         pet.s = sc;
 
         // then we process the message

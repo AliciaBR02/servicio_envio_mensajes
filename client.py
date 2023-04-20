@@ -49,6 +49,9 @@ class client :
     def  unregister(user, window):
         window['_SERVER_'].print("s> UNREGISTER OK")
         #  Write your code here
+        comando = "./cliente.out" + " UNREGISTER " + user
+        subprocess.call(comando, shell=True)
+        client._alias = None
         return client.RC.ERROR
 
 
