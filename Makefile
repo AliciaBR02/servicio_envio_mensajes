@@ -8,9 +8,6 @@ all: $(OBJS)
 servidor:  servidor.c operaciones/operaciones.c sockets/sockets.c
 	$(CC)  $(CFLAGS) $^ -o $@.out
 
-cliente: cliente.c comunicacion/comunicacion.c sockets/sockets.c
-	$(CC) -I $(CFLAGS) $^ -o $@.out
-
 clean:
 	rm -f $(BIN_FILES) *.out *.o *.so ./database/*.txt
 

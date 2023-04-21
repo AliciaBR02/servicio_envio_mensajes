@@ -8,7 +8,6 @@
 #include "sockets/sockets.h"
 #include "operaciones/operaciones.h"
 
-
 // threads and mutexes' global variables
 pthread_cond_t cond_message;
 pthread_mutex_t mutex_message;
@@ -29,22 +28,22 @@ void process_message(petition_t *pet) {
     pthread_mutex_unlock(&mutex_message);
 
     char err, res;
-    switch (pet_local.op) {
-        case 1:
-            res = registration(pet_local.nombre, pet_local.alias, pet_local.fecha_nac);
-            break;
-        case 2:
-            res = unregistration(pet_local.alias);
-            break;
-        default:
-            res = -1;
-            break;
+    
+    if (strcmp("REGISTER",  pet_local.op) == 0) {
+        res = registration(pet_local.string, s_local);
+    } else if (strcmp("UNREGISTER", pet_local.op) == 0) {
+        res = unregistration(pet_local.string);
+    } else if (strcmp("CONNECT", pet_local.op) == 0) {
+        res = connection(pet_local.string, pet_local.string2);
+    } else {
+        res = -1;
     }
-
+    dprintf(1, " end result: %d\n", res);
     // send the result to the client
-    err = sendMessage(s_local, &res, sizeof(int));
+    err = sendMessage(s_local, &res, sizeof(char));
     if (err == -1) {
         perror("server: sendmsg");
+        close(s_local);
         pthread_exit(NULL);
     }
     close(s_local);
@@ -133,24 +132,13 @@ int main(int argc, char *argv[]) {
         sc = accept(sd, (struct sockaddr *) &client_addr, &size);
         if (sc == -1) {
             perror("accept");
-            close(sd);
             close(sc);
             return -1;
         }
         dprintf(1, "conection accepted\n");
 
         // receive data
-        err = readLine(sc, buffer, sizeof(uint16_t) + 1);
-        if (err == -1) {
-            perror("recv");
-            close(sd);
-            close(sc);
-            return -1;
-        }
-        pet.op = atoi(buffer);
-        dprintf(1, "operation: %d\n", pet.op);
-        memset(buffer, 0, sizeof(uint16_t) + 1);
-
+        
         err = readLine(sc, buffer, 257);
         if (err == -1) {
             perror("recv");
@@ -158,30 +146,31 @@ int main(int argc, char *argv[]) {
             close(sc);
             return -1;
         }
-        strcpy(pet.nombre, buffer);
+        strcpy(pet.op, buffer);
         memset(buffer, 0, 257);
-        dprintf(1, "nombre: %s\n", pet.nombre);
-
+        dprintf(1, "operation: %s\n", pet.op);
         err = readLine(sc, buffer, 257);
         if (err == -1) {
             perror("recv");
             close(sd);
             return -1;
         }
-        strcpy(pet.alias, buffer);
+        strcpy(pet.string, buffer);
         memset(buffer, 0, 257);
-        dprintf(1, "alias: %s\n", pet.alias);
-
+        dprintf(1, "string: %s\n", pet.string);
         err = readLine(sc, buffer, 257);
         if (err == -1) {
             perror("recv");
             close(sd);
             return -1;
         }
-        strcpy(pet.fecha_nac, buffer);
+        strcpy(pet.string2, buffer);
         memset(buffer, 0, 257);
-        dprintf(1, "fecha_nac: %s\n", pet.fecha_nac);
-
+        dprintf(1, "string2: %s\n", pet.string2);
+        // add a newline
+        pet.string2[strlen(pet.string2)] = '\n';
+        // add ip to string2
+        strcat(pet.string2, inet_ntoa(client_addr.sin_addr));
         pet.s = sc;
 
         // then we process the message

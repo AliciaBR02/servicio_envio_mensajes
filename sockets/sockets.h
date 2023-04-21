@@ -10,10 +10,9 @@
 
     typedef struct petition
     {
-        uint16_t op;
-        char nombre[256];
-        char alias[256];
-        char fecha_nac[256];
+        char op[256];
+        char string[256];
+        char string2[256];
         int s; // socket descriptor
         
     } petition_t;

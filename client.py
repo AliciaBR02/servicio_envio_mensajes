@@ -4,6 +4,18 @@ import subprocess
 import PySimpleGUI as sg
 from enum import Enum
 import argparse
+import socket
+
+def readNumber(sock):
+    a = ''
+    while True:
+        msg = sock.recv(1)
+        if (msg == b'\0'):
+            break
+        a += msg.decode()
+    if (a == ''):
+        return 0
+    return(int(a,10))
 
 class client :
 
@@ -32,11 +44,34 @@ class client :
     # * @return ERROR if another error occurred
     @staticmethod
     def  register(user, window):
-        window['_SERVER_'].print("s> REGISTER OK")
         #  Write your code here
-        comando = "./cliente.out" + " REGISTER " + client._username + " " + client._alias + " " + client._date
-        subprocess.call(comando, shell=True)
-        
+        # create socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((client._server, client._port))
+        try:
+            s.sendall(b'REGISTER\0')
+            s.sendall((client._username).encode("utf-8"))
+            s.sendall(b'\0')          
+            s.sendall(b'\0') 
+        finally:
+            result = int.from_bytes(s.recv(4), byteorder='little')
+        if (result == 0):
+            try:
+                s.sendall(client._alias.encode("utf-8"))
+                s.sendall(b'\0')
+                s.sendall(client._date.encode("utf-8"))
+                s.sendall(b'\0')
+                
+            finally:
+                result = int.from_bytes(s.recv(4), byteorder='little')
+        s.close()
+
+        if (result == 0):
+            window['_SERVER_'].print("s> REGISTER OK")
+        elif (result == 1):
+            window['_SERVER_'].print("s> USERNAME IN USE")
+        else:
+            window['_SERVER_'].print("s> REGISTER FAIL")
         return client.RC.ERROR
 
     # *
@@ -47,10 +82,25 @@ class client :
     # 	 * @return ERROR if another error occurred
     @staticmethod
     def  unregister(user, window):
-        window['_SERVER_'].print("s> UNREGISTER OK")
         #  Write your code here
-        comando = "./cliente.out" + " UNREGISTER " + user
-        subprocess.call(comando, shell=True)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((client._server, client._port))
+        try:
+            s.sendall(b'UNREGISTER\0')
+            s.sendall((user).encode("utf-8"))
+            s.sendall(b'\0')
+            s.sendall(b'\0')
+         
+        finally:
+            result = int.from_bytes(s.recv(4), byteorder='little')
+            s.close()
+        if (result == 0):
+            window['_SERVER_'].print("s> UNREGISTER OK")
+        elif (result == 1):
+            window['_SERVER_'].print("s> USER DOES NOT EXIST")
+        else:
+            window['_SERVER_'].print("s> UNREGISTER FAIL")
+            
         client._alias = None
         return client.RC.ERROR
 
@@ -63,8 +113,29 @@ class client :
     # * @return ERROR if another error occurred
     @staticmethod
     def  connect(user, window):
-        window['_SERVER_'].print("s> CONNECT OK")
         #  Write your code here
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # look for a free port
+        s.bind(('', 0))
+        port = s.getsockname()[1]
+        s.connect((client._server, client._port))
+        try:
+            s.sendall(b'CONNECT\0')
+            s.sendall((user).encode("utf-8"))
+            s.sendall(b'\0')
+            s.sendall((str(port)).encode("utf-8"))
+            s.sendall(b'\0')
+        finally:
+            result = int.from_bytes(s.recv(4), byteorder='little')
+            s.close()
+        if (result == 0):
+            window['_SERVER_'].print("s> CONNECT OK")
+        elif result == 1:
+            window['_SERVER_'].print("s> CONNECT FAIL, USER DOES NOT EXIST")
+        elif result == 2:
+            window['_SERVER_'].print("s> USER ALREADY CONNECTED")
+        else:
+            window['_SERVER_'].print("s> CONNECT FAIL")
         return client.RC.ERROR
 
 
@@ -280,3 +351,5 @@ class client :
 if __name__ == '__main__':
     client.main([])
     print("+++ FINISHED +++")
+
+
