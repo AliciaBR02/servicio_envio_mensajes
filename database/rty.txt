@@ -1,4 +1,0 @@
-Nombre: rty 
-Alias: rty 
-Fecha de nacimiento: 17-04-2023
-

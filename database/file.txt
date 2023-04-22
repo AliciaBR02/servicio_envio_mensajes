@@ -1,4 +1,0 @@
-Nombre: Textdd 
-Alias: file 
-Fecha de nacimiento: 24-04-2023
-

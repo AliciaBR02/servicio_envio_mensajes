@@ -35,6 +35,8 @@ void process_message(petition_t *pet) {
         res = unregistration(pet_local.string);
     } else if (strcmp("CONNECT", pet_local.op) == 0) {
         res = connection(pet_local.string, pet_local.string2);
+    } else if (strcmp("DISCONNECT", pet_local.op) == 0) {
+        res = disconnection(pet_local.string);
     } else {
         res = -1;
     }
@@ -166,11 +168,11 @@ int main(int argc, char *argv[]) {
         }
         strcpy(pet.string2, buffer);
         memset(buffer, 0, 257);
-        dprintf(1, "string2: %s\n", pet.string2);
         // add a newline
-        pet.string2[strlen(pet.string2)] = '\n';
+        strcat(pet.string2, "\n");
         // add ip to string2
         strcat(pet.string2, inet_ntoa(client_addr.sin_addr));
+        dprintf(1, "string2: %s\n", pet.string2);
         pet.s = sc;
 
         // then we process the message

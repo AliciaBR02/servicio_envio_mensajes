@@ -32,7 +32,7 @@ int register_user(char *nombre, char *alias, char *fecha_nac) {
         return 2;
     }
 
-    fprintf(f, "Nombre: %s \nAlias: %s \nFecha de nacimiento: %s\nEstado: desconectado\nIP:\nPuerto:\nMensajes:\n\n", nombre, alias, fecha_nac);
+    fprintf(f, "Nombre: %s \nAlias: %s \nFecha de nacimiento: %s\nEstado: desconectado\nIP:\nPuerto:\nMensajes:\n", nombre, alias, fecha_nac);
     
     f2 = fopen(namedatabase, "a");
     if (f2 == NULL) {
@@ -164,10 +164,11 @@ int unregistration(char *alias) {
 int change_state(char *alias, int state, char *ip, char *port) {
     FILE *f, *f2;
     char *filename = malloc(256);
-    char *tempuser;
+    char *tempuser = malloc(256);
     int err;
-    sprintf("database/temp_%s.txt", alias);
+    sprintf(tempuser, "database/temp_%s.txt", alias);
     sprintf(filename, "database/%s.txt", alias);
+
     f = fopen(filename, "r+");
     if (f == NULL) {
         perror("server-fileopen: read\n");
@@ -184,56 +185,95 @@ int change_state(char *alias, int state, char *ip, char *port) {
     size_t len = 0;
     ssize_t read;
     char *token;
-    char *name;
-    char *alias2;
-    char *fecha_nac;
-    char *estado;
-    char *ip2;
-    char *port2;
-    char *mensajes;
+    char *title;
+    char *value;
+    char *string = malloc(1024);
+    char *connected = "conectado";
+    char *disconnected = "desconectado";
     while ((read = getline(&line, &len, f)) != -1) {
         token = strtok(line, ":");
-        name = token;
+        title = token;
         token = strtok(NULL, ":");
-        alias2 = token;
-        token = strtok(NULL, ":");
-        fecha_nac = token;
-        token = strtok(NULL, ":");
-        estado = token;
-        token = strtok(NULL, ":");
-        ip2 = token;
-        token = strtok(NULL, ":");
-        port2 = token;
-        token = strtok(NULL, ":");
-        mensajes = token;
-        if (strcmp(alias, alias2) == 0) {
-            fprintf(f2, "Nombre: %s \nAlias: %s \nFecha de nacimiento: %s\nEstado: %s\nIP: %s\nPuerto: %s\nMensajes: %s\n\n", name, alias2, fecha_nac, (state == 1) ? "conectado" : "desconectado", ip, port, mensajes);
-        } else {
-            fprintf(f2, "Nombre: %s \nAlias: %s \nFecha de nacimiento: %s\nEstado: %s\nIP: %s\nPuerto: %s\nMensajes: %s\n\n", name, alias2, fecha_nac, estado, ip2, port2, mensajes);
-        }
+        value = token;
+        if (strcmp(title, "Estado") == 0)
+            sprintf(string, "%s: %s", title, (state == 1) ? connected : disconnected);
+        else if (strcmp(title, "IP") == 0)
+            sprintf(string, "%s: %s", title, (state == 1) ? ip : "");
+        else if (strcmp(title, "Puerto") == 0)
+            sprintf(string, "%s: %s", title, (state == 1) ? port : "");
+        else
+            sprintf(string, "%s: %s", title, value);
+        fprintf(f2, "%s", string);
     }
-    fclose(f);
-    fclose(f2);
-    free(line);
-    free(filename);
     err = remove(filename);
     if (err == -1) {
+        fclose(f);
+        fclose(f2);
+        free(line);
+        free(string);
+        free(filename);
+        free(tempuser);
         perror("server: remove");
         return 2;
     }
     err = rename(tempuser, filename);
     if (err == -1) {
+        fclose(f);
+        fclose(f2);
+        free(line);
+        free(string);
+        free(filename);
+        free(tempuser);
         perror("server: rename");
         return 2;
     }
+    fclose(f);
+    fclose(f2);
+    free(line);
+    free(filename);
+    free(string);
+    free(tempuser);
     return 0;
 }
 
+int is_connected(char *alias) {
+    // open file of the user, and search the word "conectado"
+    FILE    *f;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    char *filename = malloc(256);
+    char *result;
+
+    sprintf(filename, "database/%s.txt", alias);
+    
+    f = fopen(filename, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        free(filename);
+        return 2;
+    }
+    while ((read = getline(&line, &len, f)) != -1) {
+        result = strstr(line, " conectado\n");
+    }
+    fclose(f);
+    if (result == NULL) {
+        free(filename);
+        return 0; // usuario NO conectado
+    }
+    free(filename);
+    return 2; // usuario conectado
+}
 int connection(char *alias, char *port_and_ip) {
     int err;
     // ver si el usuario ya existe
     int res = search_user(alias);
     if (res == 0) return 1;
+
+    // ver si el usuario ya esta conectado
+    err = is_connected(alias);
+    if (err == 2) return 2;
+
     // si existe, cambiar el estado a conectado
     char *ip = malloc(16);
     char *port = malloc(5);
@@ -246,9 +286,23 @@ int connection(char *alias, char *port_and_ip) {
     if (err != 0) {
         free(ip);
         free(port);
-        return err;
+        free(token);
+        return 3;
     }
     free(ip);
     free(port);
+    return 0;
+}
+
+int disconnection(char *alias) {
+    int err;
+    // ver si el usuario ya existe
+    int res = search_user(alias);
+    if (res == 0) return 1;
+    // si existe, cambiar el estado a desconectado
+    err = is_connected(alias);
+    if (err == 2) return err; // usuario no conectado
+    err = change_state(alias, 0, "", "");
+    if (err != 0) return 3;
     return 0;
 }

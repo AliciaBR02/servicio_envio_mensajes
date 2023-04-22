@@ -1,0 +1,11 @@
+Nombre:  estaes 
+
+Alias:  lamia 
+
+Fecha de nacimiento:  24-04-2023
+
+Estado: conectado
+IP: 127.0.0.1
+Puerto: 36779
+Mensajes: 
+
