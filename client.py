@@ -52,7 +52,9 @@ class client :
             s.sendall(b'REGISTER\0')
             s.sendall((client._username).encode("utf-8"))
             s.sendall(b'\0')          
-            s.sendall(b'\0') 
+            s.sendall(b'\0')
+            s.sendall(b'\0')
+            s.sendall(b'\0')
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
         if (result == 0):
@@ -61,6 +63,7 @@ class client :
                 s.sendall(b'\0')
                 s.sendall(client._date.encode("utf-8"))
                 s.sendall(b'\0')
+                
                 
             finally:
                 result = int.from_bytes(s.recv(4), byteorder='little')
@@ -90,6 +93,9 @@ class client :
             s.sendall((user).encode("utf-8"))
             s.sendall(b'\0')
             s.sendall(b'\0')
+            s.sendall(b'\0')
+            s.sendall(b'\0')
+
          
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
@@ -125,6 +131,8 @@ class client :
             s.sendall(b'\0')
             s.sendall((str(port)).encode("utf-8"))
             s.sendall(b'\0')
+            s.sendall(b'\0')
+            s.sendall(b'\0')
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
             s.close()
@@ -155,10 +163,13 @@ class client :
             s.sendall((user).encode("utf-8"))
             s.sendall(b'\0')
             s.sendall(b'\0')
+            s.sendall(b'\0')
+            s.sendall(b'\0')
          
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
             s.close()
+            
         if (result == 0):
             window['_SERVER_'].print("s> DISCONNECT", user, "OK")
         elif (result == 1):
@@ -179,9 +190,35 @@ class client :
     # * @return ERROR the user does not exist or another error occurred
     @staticmethod
     def  send(user, message, window):
-        window['_SERVER_'].print("s> SEND MESSAGE OK")
-        print("SEND " + user + " " + message)
-        #  Write your code here
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((client._server, client._port))
+        try:
+            # comando
+            s.sendall(b'SEND_MESSAGE\0')
+            # usuario emisor
+            s.sendall((client._alias).encode("utf-8"))
+            s.sendall(b'\0')
+            # port and ip vacio
+            s.sendall(b'\0')
+            # usuario receptor
+            s.sendall(user.encode("utf-8"))
+            s.sendall(b'\0')
+            # mensaje
+            s.sendall((message).encode("utf-8"))
+            s.sendall(b'\0')
+
+            #receive message id from socket
+            id = int.from_bytes(s.recv(4), byteorder='little')
+        finally:
+            result = int.from_bytes(s.recv(4), byteorder='little')
+            s.close()
+
+        if (result == 0):
+            window['_SERVER_'].print("s> SEND OK - MESSAGE", id)
+        elif (result == 1):
+            window['_SERVER_'].print("s> SEND FAIL/USER DOES NOT EXIST")
+        else:
+            window['_SERVER_'].print("s> SEND FAIL")
         return client.RC.ERROR
 
     # *

@@ -12,7 +12,6 @@
 pthread_cond_t cond_message;
 pthread_mutex_t mutex_message;
 int not_message_copied = 1;
-char buffer[1024];
 
 
 // function to process the message and execute the requested operation
@@ -30,13 +29,15 @@ void process_message(petition_t *pet) {
     char err, res;
     
     if (strcmp("REGISTER",  pet_local.op) == 0) {
-        res = registration(pet_local.string, s_local);
-    } else if (strcmp("UNREGISTER", pet_local.op) == 0) {
-        res = unregistration(pet_local.string);
+        res = registration(pet_local.user, s_local);
+    } else if (strcmp("UNREGISTER", pet_local.op) == 0) { 
+        res = unregistration(pet_local.user);
     } else if (strcmp("CONNECT", pet_local.op) == 0) {
-        res = connection(pet_local.string, pet_local.string2);
+        res = connection(pet_local.user, pet_local.port_and_ip);
     } else if (strcmp("DISCONNECT", pet_local.op) == 0) {
-        res = disconnection(pet_local.string);
+        res = disconnection(pet_local.user);
+    } else if (strcmp("SEND_MESSAGE", pet_local.op) == 0) {
+        res = send_message(pet_local.user, pet_local.receiver, pet_local.message, s_local);
     } else {
         res = -1;
     }
@@ -140,39 +141,58 @@ int main(int argc, char *argv[]) {
         dprintf(1, "conection accepted\n");
 
         // receive data
-        
-        err = readLine(sc, buffer, 257);
+        // first parameter
+        err = readLine(sc, pet.op, 257);
         if (err == -1) {
             perror("recv");
             close(sd);
             close(sc);
             return -1;
         }
-        strcpy(pet.op, buffer);
-        memset(buffer, 0, 257);
         dprintf(1, "operation: %s\n", pet.op);
-        err = readLine(sc, buffer, 257);
+
+        // second parameter
+        err = readLine(sc, pet.user, 257);
         if (err == -1) {
             perror("recv");
             close(sd);
             return -1;
         }
-        strcpy(pet.string, buffer);
-        memset(buffer, 0, 257);
-        dprintf(1, "string: %s\n", pet.string);
-        err = readLine(sc, buffer, 257);
+        dprintf(1, "user: %s\n", pet.user);
+
+        // third parameter
+        err = readLine(sc, pet.port_and_ip, 257);
         if (err == -1) {
             perror("recv");
             close(sd);
             return -1;
         }
-        strcpy(pet.string2, buffer);
-        memset(buffer, 0, 257);
-        // add a newline
-        strcat(pet.string2, "\n");
-        // add ip to string2
-        strcat(pet.string2, inet_ntoa(client_addr.sin_addr));
-        dprintf(1, "string2: %s\n", pet.string2);
+        if (pet.port_and_ip[0] != '\0') {
+            // add a newline
+            strcat(pet.port_and_ip, "\n");
+            // add ip to port
+            strcat(pet.port_and_ip, inet_ntoa(client_addr.sin_addr));
+        }
+        dprintf(1, "port: %s\n", pet.port_and_ip);
+
+        // fourth parameter
+        err = readLine(sc, pet.receiver, 257);
+        if (err == -1) {
+            perror("recv");
+            close(sd);
+            return -1;
+        }
+        dprintf(1, "receiver: %s\n", pet.receiver);
+
+        // fifth parameter
+        err = readLine(sc, pet.message, 257);
+        if (err == -1) {
+            perror("recv");
+            close(sd);
+            return -1;
+        }
+        dprintf(1, "message: %s\n", pet.message);
+        // copy socket descriptor
         pet.s = sc;
 
         // then we process the message

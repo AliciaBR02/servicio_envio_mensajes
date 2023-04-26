@@ -5,6 +5,7 @@
     int unregistration(char *alias);
     int connection(char *alias, char *port_and_ip);
     int disconnection(char *alias);
+    int send_message(char *from, char *to, char *message, int socket);
 
     typedef struct {
         char *nombre;

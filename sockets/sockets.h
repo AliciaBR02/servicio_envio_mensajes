@@ -10,9 +10,11 @@
 
     typedef struct petition
     {
-        char op[256];
-        char string[256];
-        char string2[256];
+        char op[256]; // operation
+        char user[256]; // user
+        char port_and_ip[256]; // port
+        char receiver[256]; // receiver user
+        char message[256]; // message
         int s; // socket descriptor
         
     } petition_t;

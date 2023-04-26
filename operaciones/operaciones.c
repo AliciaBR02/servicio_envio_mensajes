@@ -4,16 +4,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
 
 int search_user(char *alias) {
     // user is until the first newline
 
-    char *filename = malloc(256);
+    char *filename = malloc(strlen(alias) + 14);
     sprintf(filename, "database/%s.txt", alias);
     if (access(filename, F_OK) != -1) {
         free(filename);
         return 1;
-    }
+    } // if the user doesn't exist, return 0
 
     free(filename);
     return 0;
@@ -196,11 +197,11 @@ int change_state(char *alias, int state, char *ip, char *port) {
         token = strtok(NULL, ":");
         value = token;
         if (strcmp(title, "Estado") == 0)
-            sprintf(string, "%s: %s", title, (state == 1) ? connected : disconnected);
+            sprintf(string, "%s: %s\n", title, (state == 1) ? connected : disconnected);
         else if (strcmp(title, "IP") == 0)
-            sprintf(string, "%s: %s", title, (state == 1) ? ip : "");
+            sprintf(string, "%s: %s\n", title, (state == 1) ? ip : "");
         else if (strcmp(title, "Puerto") == 0)
-            sprintf(string, "%s: %s", title, (state == 1) ? port : "");
+            sprintf(string, "%s: %s\n", title, (state == 1) ? port : "");
         else
             sprintf(string, "%s: %s", title, value);
         fprintf(f2, "%s", string);
@@ -305,4 +306,107 @@ int disconnection(char *alias) {
     err = change_state(alias, 0, "", "");
     if (err != 0) return 3;
     return 0;
+}
+int get_message_id(char *to) {
+    FILE *f;
+    char *filename = malloc(256);
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int id = 0;
+
+    sprintf(filename, "database/%s.txt", to);
+    f = fopen(filename, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        free(filename);
+        free(line);
+        return 2;
+    }
+    while ((read = getline(&line, &len, f)) != -1) {
+        if (isdigit(line[0])) {
+            id++;
+        }
+    }
+    fclose(f);
+    free(filename);
+    free(line);
+    return id;
+}
+int save_message(int id, char *from, char *to, char *message) {
+    FILE *f, *f2;
+    int len_to = strlen(to);
+    char *filename = malloc(len_to + 13);
+    char *tempuser = malloc(strlen(to) + 19);
+    char c;
+    int err;
+
+    sprintf(tempuser, "database/temp_%s.txt", to);
+    sprintf(filename, "database/%s.txt", to);
+
+    f = fopen(filename, "r+");
+    if (f == NULL) {
+        perror("server-fileopen\n");
+        free(filename);
+        free(tempuser);
+        return 2;
+    }
+    f2 = fopen(tempuser, "w");
+    if (f2 == NULL) {
+        perror("server-fileopen\n");
+        free(filename);
+        free(tempuser);
+        fclose(f);
+        return 2;
+    }
+
+    while ((c = fgetc(f)) != EOF) {
+        fputc(c, f2);
+    }
+    fprintf(f2, "%d: %s %s\n", id, from, message);
+    
+    err = remove(filename);
+    if (err == -1) {
+        fclose(f);
+        fclose(f2);
+        free(filename);
+        free(tempuser);
+        perror("server: remove");
+        return 2;
+    }
+    err = rename(tempuser, filename);
+    if (err == -1) {
+        fclose(f);
+        fclose(f2);
+        free(filename);
+        free(tempuser);
+        perror("server: rename");
+        return 2;
+    }
+    fclose(f);
+    fclose(f2);
+    free(filename);
+    free(tempuser);    
+    return 0;
+}
+int send_message(char *from, char *to, char *message, int socket) {
+    // check if the users exist
+    int err, err2, res;
+    err = search_user(from);
+    err2 = search_user(to);
+    if (err != 0 && err2 != 0) {
+        // get last message id
+        err = get_message_id(to);
+        // save message
+        err = save_message(err, from, to, message);
+        if (err != 0) return 2;
+        res = 0;
+    } else {
+        res = 1;
+    }
+    // send id to client
+    err = sendMessage(socket, (char *)&err, sizeof(int));
+    if (err != 0) return 2;
+
+    return res;
 }
