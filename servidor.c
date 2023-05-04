@@ -26,24 +26,151 @@ void process_message(petition_t *pet) {
     pthread_cond_signal(&cond_message);
     pthread_mutex_unlock(&mutex_message);
 
-    char err, res;
+    int err, res;
+    char *buffer = malloc(50); // to read the length of the strings
+    int length;
     
     if (strcmp("REGISTER",  pet_local.op) == 0) {
-        res = registration(pet_local.user, s_local);
+        // receive length
+        err = readLine(s_local, buffer, sizeof(uint16_t));
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        length = atoi(buffer);
+        dprintf(1, "length: %d\n", length);
+        char *user = malloc(length + 1);
+
+        // receive alias
+        err = readLine(s_local, user, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "alias: %s\n", user);
+        res = registration(user, s_local);
+        free(buffer);
+        free(user);
+
     } else if (strcmp("UNREGISTER", pet_local.op) == 0) { 
-        res = unregistration(pet_local.user);
+        err = readLine(s_local, buffer, sizeof(uint16_t));
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        length = atoi(buffer);
+        char *user = malloc(length + 1);
+        // receive alias
+        err = readLine(s_local, user, length + 1);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "alias: %s\n", user);
+        res = unregistration(user);
+        free(buffer);
+        free(user);
+
     } else if (strcmp("CONNECT", pet_local.op) == 0) {
-        res = connection(pet_local.user, pet_local.port_and_ip);
+        // alias
+        err = readLine(s_local, buffer, sizeof(uint16_t));
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        length = atoi(buffer);
+        char *user = malloc(length + 1);
+        // receive alias
+        err = readLine(s_local, user, length + 1);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            free(buffer);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "alias: %s\n", user);
+
+        char *port_and_ip = malloc(5);
+        err = readLine(s_local, port_and_ip, 5);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        // add a zero
+        strcat(pet_local.ip, "\0");
+        // add pet.ip to port_and_ip
+        strcat(pet_local.ip, port_and_ip);
+        dprintf(1, "port and ip: %s\n", pet_local.ip);
+        res = connection(user, pet_local.ip);
+        free(user);
+        free(port_and_ip);
+        free(buffer);
+
     } else if (strcmp("DISCONNECT", pet_local.op) == 0) {
-        res = disconnection(pet_local.user);
+
+        char *user = malloc(256);
+        // receive alias
+        err = readLine(s_local, user, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "alias: %s\n", user);
+        res = disconnection(user);
+        free(user);
+    //} else if (strcmp("CONNECTEDUSERS", pet_local.op) == 0) {
+    //    res = connected_users(pet_local.user);
     } else if (strcmp("SEND_MESSAGE", pet_local.op) == 0) {
-        res = send_message(pet_local.user, pet_local.receiver, pet_local.message, s_local);
+
+        char *user = malloc(256);
+        char *receiver = malloc(256);
+        char *message = malloc(256);
+        // receive alias
+        err = readLine(s_local, user, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "alias: %s\n", user);
+        // receive receiver
+        err = readLine(s_local, receiver, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "receiver: %s\n", receiver);
+        // receive message
+        err = readLine(s_local, message, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        dprintf(1, "message: %s\n", message);
+        res = send_message(user, receiver, message, s_local);
+        free(user);
+        free(receiver);
+        free(message);
     } else {
         res = -1;
     }
     dprintf(1, " end result: %d\n", res);
     // send the result to the client
-    err = sendMessage(s_local, &res, sizeof(char));
+    err = sendMessage(s_local, (char *)&res, sizeof(char));
     if (err == -1) {
         perror("server: sendmsg");
         close(s_local);
@@ -63,7 +190,7 @@ void process_message(petition_t *pet) {
 // 7- Cerrar el socket
 
 int main(int argc, char *argv[]) {
-    // auxiliar variables
+    // auxiliar variablesserver_addr.sin_addr.s_addr
     int err;
     ssize_t err2;
 
@@ -139,6 +266,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
         dprintf(1, "conection accepted\n");
+        dprintf(1, "client ip: %s\n", inet_ntoa(client_addr.sin_addr));
 
         // receive data
         // first parameter
@@ -150,51 +278,9 @@ int main(int argc, char *argv[]) {
             return -1;
         }
         dprintf(1, "operation: %s\n", pet.op);
-
-        // second parameter
-        err = readLine(sc, pet.user, 257);
-        if (err == -1) {
-            perror("recv");
-            close(sd);
-            return -1;
-        }
-        dprintf(1, "user: %s\n", pet.user);
-
-        // third parameter
-        err = readLine(sc, pet.port_and_ip, 257);
-        if (err == -1) {
-            perror("recv");
-            close(sd);
-            return -1;
-        }
-        if (pet.port_and_ip[0] != '\0') {
-            // add a newline
-            strcat(pet.port_and_ip, "\n");
-            // add ip to port
-            strcat(pet.port_and_ip, inet_ntoa(client_addr.sin_addr));
-        }
-        dprintf(1, "port: %s\n", pet.port_and_ip);
-
-        // fourth parameter
-        err = readLine(sc, pet.receiver, 257);
-        if (err == -1) {
-            perror("recv");
-            close(sd);
-            return -1;
-        }
-        dprintf(1, "receiver: %s\n", pet.receiver);
-
-        // fifth parameter
-        err = readLine(sc, pet.message, 257);
-        if (err == -1) {
-            perror("recv");
-            close(sd);
-            return -1;
-        }
-        dprintf(1, "message: %s\n", pet.message);
-        // copy socket descriptor
         pet.s = sc;
-
+        // we copy the ip of the client
+        strcpy(pet.ip, inet_ntoa(client_addr.sin_addr));
         // then we process the message
         pthread_create(&thread, &attr, (void *)process_message, (void *)&pet);
 

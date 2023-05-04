@@ -51,6 +51,8 @@ int register_user(char *nombre, char *alias, char *fecha_nac) {
 
 int registration(char *nombre, int socket) {
     int res, err;
+    int length;
+    char *buffer = malloc(20);
     // ver si el usuario ya existe
 
     res = search_user(nombre);
@@ -58,26 +60,44 @@ int registration(char *nombre, int socket) {
     err = sendMessage(socket, (char *)&res, sizeof(int));
     if (err == 1) {
         perror("server: sendmsg");
+        free(buffer);
         return err;
     }
     if (res == 1) return res;
     // de lo contrario, registrarlo
-    char *alias = malloc(256);
-    char *fecha_nac = malloc(256);
-    err = readLine(socket, alias, 256);
+    err = readLine(socket, buffer, sizeof(int));
+    if (err == -1) {
+        perror("server: readLine");
+        free(buffer);
+        return 2;
+    }
+    length = atoi(buffer);
+    char *alias = malloc(length + 1);
+    err = readLine(socket, alias, length + 1);
+    if (err == -1) {
+        perror("server: readLine");
+        free(alias);
+        free(buffer);
+        return 2;
+    }
+    err = readLine(socket, buffer, sizeof(int));
+    if (err == -1) {
+        perror("server: readLine");
+        free(alias);
+        free(buffer);
+        return 2;
+    }
+    length = atoi(buffer);
+    char *fecha_nac = malloc(length + 1);
+    err = readLine(socket, fecha_nac, length + 1);
     if (err == -1) {
         perror("server: readLine");
         free(alias);
         free(fecha_nac);
+        free(buffer);
         return 2;
     }
-    err = readLine(socket, fecha_nac, 256);
-    if (err == -1) {
-        perror("server: readLine");
-        free(alias);
-        free(fecha_nac);
-        return 2;
-    }
+    dprintf(1, "Nombre: %s\nAlias: %s\nFecha de nacimiento: %s\n", nombre, alias, fecha_nac);
     err = register_user(nombre, alias, fecha_nac);
     free(alias);
     free(fecha_nac);
@@ -162,6 +182,67 @@ int unregistration(char *alias) {
     return 0;
 
 }
+int connect_user_database(char *alias) {
+    char *connected_database = "database/connected.txt";
+
+    FILE *f;
+    f = fopen(connected_database, "a");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        return 2;
+    }
+    fprintf(f, "%s\n", alias);
+    fclose(f);
+    return 0;
+}
+
+int disconnect_user_database(char *alias) {
+    char *connected_database = "database/connected.txt";
+
+    FILE *f, *f2;
+    char *tempuser = "database/temp_connected.txt";
+    char c;
+    int err;
+    // copy file except for the line containing alias
+
+    f = fopen(connected_database, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        return 2;
+    }
+    f2 = fopen(tempuser, "w");
+    if (f2 == NULL) {
+        perror("server-fileopen: read\n");
+        fclose(f);
+        return 2;
+    }
+    while ((c = fgetc(f)) != EOF) {
+        if (c == '\n') {
+            char *line = malloc(256);
+            fgets(line, 256, f);
+            if (strcmp(line, alias) != 0) {
+                fprintf(f2, "%s\n", line);
+            }
+            free(line);
+        } else {
+            fputc(c, f2);
+        }
+    }
+    fclose(f);
+    fclose(f2);
+    err = remove(connected_database);
+    if (err == -1) {
+        perror("server: remove");
+        return 2;
+    }
+    err = rename(tempuser, connected_database);
+    if (err == -1) {
+        perror("server: rename");
+        return 2;
+    }
+    return 0;
+}
+
 int change_state(char *alias, int state, char *ip, char *port) {
     FILE *f, *f2;
     char *filename = malloc(256);
@@ -266,8 +347,10 @@ int is_connected(char *alias) {
     return 2; // usuario conectado
 }
 int connection(char *alias, char *port_and_ip) {
+    dprintf(1, "empezando connection\n");
+    dprintf(1, "ALIAS: %s\n", alias);
     int err;
-    // ver si el usuario ya existe
+    // ver si el usuario no existe
     int res = search_user(alias);
     if (res == 0) return 1;
 
@@ -283,6 +366,7 @@ int connection(char *alias, char *port_and_ip) {
     strcpy(port, token);
     token = strtok(NULL, "\n");
     strcpy(ip, token);
+    dprintf(1, "antes de changestate\n");
     err = change_state(alias, 1, ip, port);
     if (err != 0) {
         free(ip);
@@ -290,9 +374,12 @@ int connection(char *alias, char *port_and_ip) {
         free(token);
         return 3;
     }
+    dprintf(1, "despues de changestate\n");
     free(ip);
     free(port);
-    return 0;
+    dprintf(1, "antes de connect_user_database\n");
+    err = connect_user_database(alias);
+    return err;
 }
 
 int disconnection(char *alias) {
@@ -305,8 +392,47 @@ int disconnection(char *alias) {
     if (err == 2) return err; // usuario no conectado
     err = change_state(alias, 0, "", "");
     if (err != 0) return 3;
-    return 0;
+    err = disconnect_user_database(alias);
+    return err;
 }
+
+int count_connected() {
+    char *filename = "database/connected.txt";
+    FILE *f;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int count = 0;
+    //open file
+    f = fopen(filename, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        return 2;
+    }
+    while ((read = getline(&line, &len, f)) != -1) {
+        count += 1;
+    }
+    fclose(f);
+    return count;
+
+}
+
+int read_connected() {
+    
+}
+
+int connected_users(char *alias) {
+    int err, res;
+    //comprobar si está registrado, si no return 2
+    err = search_user(alias);
+    if (err == 0) return 2;
+    //comprobar si está conectado, si no return 1
+    err = is_connected(alias);
+    if (err == 0) return 1;
+    //count_connected, read_connected, return 0
+    res = count_connected();
+}
+
 int get_message_id(char *to) {
     FILE *f;
     char *filename = malloc(256);
@@ -410,3 +536,4 @@ int send_message(char *from, char *to, char *message, int socket) {
 
     return res;
 }
+

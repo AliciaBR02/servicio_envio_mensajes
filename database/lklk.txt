@@ -1,0 +1,7 @@
+Nombre: lkl 
+Alias: lklk 
+Fecha de nacimiento: 29-05-2023
+Estado: desconectado
+IP:
+Puerto:
+Mensajes:
