@@ -1,7 +1,0 @@
-Nombre: cvbn 
-Alias: cvbn 
-Fecha de nacimiento: 21-05-2023
-Estado: desconectado
-IP:
-Puerto:
-Mensajes:

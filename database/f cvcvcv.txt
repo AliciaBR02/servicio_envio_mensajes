@@ -1,7 +1,0 @@
-Nombre: cvcvvc 
-Alias: f cvcvcv 
-Fecha de nacimiento: 29-05-2023
-Estado: desconectado
-IP:
-Puerto:
-Mensajes:

@@ -1,7 +1,0 @@
-Nombre: ert 
-Alias: ert 
-Fecha de nacimiento: 23-05-2023
-Estado: desconectado
-IP:
-Puerto:
-Mensajes:

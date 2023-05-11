@@ -5,7 +5,19 @@ import PySimpleGUI as sg
 from enum import Enum
 import argparse
 import socket
+import threading
 
+socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def receive_messages(socket_connected, port, user, window):
+    #receive message
+    print("port: ", port)
+    socket_connected.listen(1)
+    conn, addr = socket_connected.accept()
+    print("Connected by", addr)
+    while True:
+        msg = conn.recv(256)
+        if msg:
+            print(msg)
 def readNumber(sock):
     a = ''
     while True:
@@ -109,9 +121,13 @@ class client :
     def  connect(user, window):
         #  Write your code here
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # look for a free port
-        s.bind(('', 0))
-        port = s.getsockname()[1]
+        socket_connected.bind(('', 0))
+        port = socket_connected.getsockname()[1]
+        # create a thread and connect there the socket
+        t = threading.Thread(target=receive_messages, args=(socket_connected, port, user, window))
+        t.start()
         s.connect((client._server, client._port))
         try:
             message = "CONNECT\0" + str(len(user)) + "\0" + user + "\0" + str(port) + "\0"
@@ -141,6 +157,8 @@ class client :
         #  Write your code here
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((client._server, client._port))
+        #kill thread and close socket
+        threading.kill(t)
         try:
             s.sendall(b'DISCONNECT\0')
             s.sendall((user).encode("utf-8"))

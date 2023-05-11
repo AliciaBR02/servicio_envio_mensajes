@@ -3,7 +3,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
 #include <arpa/inet.h>
+#include <sys/types.h>
 #include <stdio.h>
 #include "sockets/sockets.h"
 #include "operaciones/operaciones.h"
@@ -14,7 +18,7 @@ pthread_mutex_t mutex_message;
 int not_message_copied = 1;
 
 
-// function to process the message and execute the requested operation
+// function to procSess the message and execute the requested operation
 void process_message(petition_t *pet) {
     petition_t pet_local = *pet;
     // copy the descriptor to a local variable
@@ -100,8 +104,8 @@ void process_message(petition_t *pet) {
         }
         dprintf(1, "alias: %s\n", user);
 
-        char *port_and_ip = malloc(5);
-        err = readLine(s_local, port_and_ip, 5);
+        char *port_and_ip = malloc(10);
+        err = readLine(s_local, port_and_ip, 10);
         if (err == -1) {
             perror("recv");
             close(s_local);
@@ -112,7 +116,7 @@ void process_message(petition_t *pet) {
         // add pet.ip to port_and_ip
         strcat(pet_local.ip, port_and_ip);
         dprintf(1, "port and ip: %s\n", pet_local.ip);
-        res = connection(user, pet_local.ip);
+        res = connection(user, pet_local.ip, s_local);
         free(user);
         free(port_and_ip);
         free(buffer);
@@ -255,6 +259,8 @@ int main(int argc, char *argv[]) {
 
     petition_t pet;
     // infinite loop waiting for requests
+
+
     
     while (1) {
         dprintf(1, "waiting for conection...\n");
@@ -281,6 +287,9 @@ int main(int argc, char *argv[]) {
         pet.s = sc;
         // we copy the ip of the client
         strcpy(pet.ip, inet_ntoa(client_addr.sin_addr));
+        // add a newline
+        strcat(pet.ip, "\n");
+        dprintf(1, "ip: %s\n", pet.ip);
         // then we process the message
         pthread_create(&thread, &attr, (void *)process_message, (void *)&pet);
 

@@ -1,5 +1,9 @@
 #include "operaciones.h"
 #include "../sockets/sockets.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -346,13 +350,86 @@ int is_connected(char *alias) {
     free(filename);
     return 2; // usuario conectado
 }
-int connection(char *alias, char *port_and_ip) {
+
+int establish_connection(char *ip, char *port) {
+    int err, res;
+    int sd;
+    struct sockaddr_in server_addr;
+
+    sd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sd == 1) {
+		printf("Error en socket\n");
+		return -1;
+	}
+    
+   	server_addr.sin_family  = AF_INET;
+   	server_addr.sin_port    = htons(atoi(port));
+    server_addr.sin_addr.s_addr = inet_addr(ip);
+    dprintf(1, "PUERTO A CONECTAR: %d\n", atoi(port));
+    dprintf(1, "IP A CONECTAR: %s\n", ip);
+    err = connect(sd, (struct sockaddr *) &server_addr,  sizeof(server_addr));
+	if (err == -1) {
+		perror("connect");
+		return -1;
+	}
+    return sd;
+}
+int messages_connected_user(char *alias, char *ip, char *port) {
+    // connect to the user from socket and send the messages
+    int err, res;
+    int socket;
+    char *userfilename = malloc(strlen(alias) + 14);
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    FILE *f;
+
+    socket = establish_connection(ip, port);
+    if (socket == -1) {
+        free(userfilename);
+        perror("server: establish_connection");
+        return 2;
+    }
+    dprintf(1, "conexion establecida\n");
+    message_t *message = malloc(sizeof(message_t));
+
+    sprintf(userfilename, "database/%s.txt", alias);
+    f = fopen(userfilename, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read\n");
+        free(userfilename);
+        return 2;
+    }
+
+    while ((read = getline(&line, &len, f)) != -1) {
+        if (isdigit(line[0])) {
+            // read the line, put from and message into the struct and send it to the ip address
+            sscanf(line, "%d: %s %s", &message->id, message->from, message->message);
+            err = sendMessage(socket, (char *)message, sizeof(message_t));
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
+        }
+    }
+    fclose(f);
+    free(userfilename);
+    free(message);
+    free(line);
+    close(socket);
+    return 0;
+}
+int connection(char *alias, char *port_and_ip, int socket) {
     dprintf(1, "empezando connection\n");
     dprintf(1, "ALIAS: %s\n", alias);
     int err;
     // ver si el usuario no existe
-    int res = search_user(alias);
-    if (res == 0) return 1;
+    err = search_user(alias);
+    if (err == 0) return err;
 
     // ver si el usuario ya esta conectado
     err = is_connected(alias);
@@ -363,9 +440,22 @@ int connection(char *alias, char *port_and_ip) {
     char *port = malloc(5);
     char *token;
     token = strtok(port_and_ip, "\n");
-    strcpy(port, token);
-    token = strtok(NULL, "\n");
     strcpy(ip, token);
+    dprintf(1, "ip: %s\n", ip);
+    token = strtok(NULL, "\0");
+    strcpy(port, token);
+    dprintf(1, "port: %s\n", port);
+
+    /* YA TENEMOS LOS DATOS NECESARIOS */
+    err = messages_connected_user(alias, ip, port);
+    if (err != 0) {
+        free(ip);
+        free(port);
+        return err;
+    }
+
+    /* ACTUALIZAR BASE DE DATOS */
+
     dprintf(1, "antes de changestate\n");
     err = change_state(alias, 1, ip, port);
     if (err != 0) {
