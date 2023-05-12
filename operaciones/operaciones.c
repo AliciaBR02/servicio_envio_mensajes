@@ -405,8 +405,22 @@ int messages_connected_user(char *alias, char *ip, char *port) {
             break;
         }
     }
+    // si hay mensajes, enviarlos
+    
     while ((read = getline(&line, &len, f)) != -1) {
         if (isdigit(line[0])) {
+            // if theres a number, we send a 1 to indicate there are messages
+            res = 1;
+            dprintf(1, "THERE ARE MESSAGES\n");
+            err = sendMessage(socket, (char *)&res, sizeof(int));
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
             // read the line, put from and message into the struct and send it to the ip address
             sscanf(line, "%d: %s \"%s\"", &message->id, message->from, message->message);
             message->length_from = strlen(message->from);
@@ -464,6 +478,19 @@ int messages_connected_user(char *alias, char *ip, char *port) {
             dprintf(1, "message %s\n", message->message);
         }
     }
+    // if there are no messages, send a 0
+    if (res != 1){
+        res = 0;
+        err = sendMessage(socket, (char *)&res, sizeof(int));
+        if (err != 0) {
+            free(userfilename);
+            free(message);
+            free(line);
+            fclose(f);
+            close(socket);
+            return 2;
+        }
+    }
     fclose(f);
     free(userfilename);
     free(message);
@@ -497,7 +524,7 @@ int connection(char *alias, char *port_and_ip, int socket) {
         free(port);
         return err;
     }
-
+    dprintf(1, "after reading messages\n");
     /* ACTUALIZAR BASE DE DATOS */
 
     err = change_state(alias, 1, ip, port);
@@ -510,6 +537,7 @@ int connection(char *alias, char *port_and_ip, int socket) {
     free(ip);
     free(port);
     err = connect_user_database(alias);
+    dprintf(1, "evertything went fine\n");
     return err;
 }
 

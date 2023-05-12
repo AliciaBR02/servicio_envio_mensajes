@@ -1,4 +1,4 @@
-#!/bin/bash/
+#!/bin/bash
 
 host=$(./cliente.out)
 echo "La dirección IP es: $host"

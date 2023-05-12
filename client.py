@@ -11,18 +11,20 @@ keep_connection = False
 socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def client_connection(socket_connected):
-    #receive message
+    global keep_connection
+    
+    # connection for only one client
+    
+    keep_connection = True
     socket_connected.listen()
     conn, addr = socket_connected.accept()
+    
     print("connected by ", addr)
-    while True:
-        if not keep_connection:
-            break
-        
+    # Release the lock to allow another client to connect
+    while keep_connection:
+        ...
     print("closing connection")
-    socket_connected.close()
-    # kill the thread
-    return
+    conn.close()
 
 def readNumber(sock):
     a = ''
@@ -134,8 +136,7 @@ class client :
         # create a thread and connect there the socket
         global keep_connection
         if keep_connection == False:
-            keep_connection = True
-            connection_thread = threading.Thread(target=client_connection, args=(socket_connected))
+            connection_thread = threading.Thread(target=client_connection, name='Daemon', args=(socket_connected,))
             connection_thread.start()
         s.connect((client._server, client._port))
         try:
@@ -143,23 +144,27 @@ class client :
             s.sendall(message.encode("utf-8"))
             
         finally:
-            # read integer
-            message_id = readNumber(s)
-            if message_id:
-                print("message_id: ", message_id)
-            # read integer
-            length_from = readNumber(s)
-            if length_from:
-                print("length_from: ", length_from)
-            # read string
-            from_user = s.recv(length_from + 1)
-            if from_user:
-                print("from_user: ", from_user.decode("utf-8"))
-            # read integer
-            length_text = readNumber(s)
-            if length_text:
-                print("length_text: ", length_text)
-            result = int.from_bytes(s.recv(4), byteorder='little')
+            # check if there are messages by receiving the first integer
+            result = readNumber(s)
+            print("result: ", result)
+            if result == 1:
+                # read integer
+                message_id = readNumber(s)
+                if message_id:
+                    print("message_id: ", message_id)
+                # read integer
+                length_from = readNumber(s)
+                if length_from:
+                    print("length_from: ", length_from)
+                # read string
+                from_user = s.recv(length_from + 1)
+                if from_user:
+                    print("from_user: ", from_user.decode("utf-8"))
+                # read integer
+                length_text = readNumber(s)
+                if length_text:
+                    print("length_text: ", length_text)
+                result = int.from_bytes(s.recv(4), byteorder='little')
             
             s.close()
         if (result == 0):
