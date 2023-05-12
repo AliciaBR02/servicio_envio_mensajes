@@ -101,7 +101,6 @@ int registration(char *nombre, int socket) {
         free(buffer);
         return 2;
     }
-    dprintf(1, "Nombre: %s\nAlias: %s\nFecha de nacimiento: %s\n", nombre, alias, fecha_nac);
     err = register_user(nombre, alias, fecha_nac);
     free(alias);
     free(fecha_nac);
@@ -365,8 +364,7 @@ int establish_connection(char *ip, char *port) {
    	server_addr.sin_family  = AF_INET;
    	server_addr.sin_port    = htons(atoi(port));
     server_addr.sin_addr.s_addr = inet_addr(ip);
-    dprintf(1, "PUERTO A CONECTAR: %d\n", atoi(port));
-    dprintf(1, "IP A CONECTAR: %s\n", ip);
+    dprintf(1, "IP: %s PORT: %s\n", ip, port);
     err = connect(sd, (struct sockaddr *) &server_addr,  sizeof(server_addr));
 	if (err == -1) {
 		perror("connect");
@@ -383,6 +381,7 @@ int messages_connected_user(char *alias, char *ip, char *port) {
     size_t len = 0;
     ssize_t read;
     FILE *f;
+    int total_length = 0;
 
     socket = establish_connection(ip, port);
     if (socket == -1) {
@@ -390,7 +389,6 @@ int messages_connected_user(char *alias, char *ip, char *port) {
         perror("server: establish_connection");
         return 2;
     }
-    dprintf(1, "conexion establecida\n");
     message_t *message = malloc(sizeof(message_t));
 
     sprintf(userfilename, "database/%s.txt", alias);
@@ -401,11 +399,20 @@ int messages_connected_user(char *alias, char *ip, char *port) {
         return 2;
     }
 
+    // AVANZAR HASTA ENCONTRAR "Mensajes:"
+    while ((read = getline(&line, &len, f)) != -1) {
+        if (strcmp(line, "Mensajes:\n") == 0) {
+            break;
+        }
+    }
     while ((read = getline(&line, &len, f)) != -1) {
         if (isdigit(line[0])) {
             // read the line, put from and message into the struct and send it to the ip address
-            sscanf(line, "%d: %s %s", &message->id, message->from, message->message);
-            err = sendMessage(socket, (char *)message, sizeof(message_t));
+            sscanf(line, "%d: %s \"%s\"", &message->id, message->from, message->message);
+            message->length_from = strlen(message->from);
+            message->length_message = strlen(message->message);
+            dprintf(1, "LINE %d FROM length %d %s TEXT length %d %s\n", message->id, message->length_from, message->from, message->length_message, message->message);
+            err = sendMessage(socket, (char *)&message->id, sizeof(int));
             if (err != 0) {
                 free(userfilename);
                 free(message);
@@ -414,6 +421,47 @@ int messages_connected_user(char *alias, char *ip, char *port) {
                 close(socket);
                 return 2;
             }
+            dprintf(1, "id %d\n", message->id);
+            err = sendMessage(socket, (char *)&message->length_from, sizeof(int));
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
+            dprintf(1, "length from %d\n", message->length_from);
+            err = sendMessage(socket, message->from, message->length_from);
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
+            dprintf(1, "from %s\n", message->from);
+            err = sendMessage(socket, (char *)&message->length_message, sizeof(int));
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
+            dprintf(1, "length message %d\n", message->length_message);
+            err = sendMessage(socket, message->message, message->length_message);
+            if (err != 0) {
+                free(userfilename);
+                free(message);
+                free(line);
+                fclose(f);
+                close(socket);
+                return 2;
+            }
+            dprintf(1, "message %s\n", message->message);
         }
     }
     fclose(f);
@@ -424,8 +472,6 @@ int messages_connected_user(char *alias, char *ip, char *port) {
     return 0;
 }
 int connection(char *alias, char *port_and_ip, int socket) {
-    dprintf(1, "empezando connection\n");
-    dprintf(1, "ALIAS: %s\n", alias);
     int err;
     // ver si el usuario no existe
     err = search_user(alias);
@@ -441,10 +487,8 @@ int connection(char *alias, char *port_and_ip, int socket) {
     char *token;
     token = strtok(port_and_ip, "\n");
     strcpy(ip, token);
-    dprintf(1, "ip: %s\n", ip);
     token = strtok(NULL, "\0");
     strcpy(port, token);
-    dprintf(1, "port: %s\n", port);
 
     /* YA TENEMOS LOS DATOS NECESARIOS */
     err = messages_connected_user(alias, ip, port);
@@ -456,7 +500,6 @@ int connection(char *alias, char *port_and_ip, int socket) {
 
     /* ACTUALIZAR BASE DE DATOS */
 
-    dprintf(1, "antes de changestate\n");
     err = change_state(alias, 1, ip, port);
     if (err != 0) {
         free(ip);
@@ -464,10 +507,8 @@ int connection(char *alias, char *port_and_ip, int socket) {
         free(token);
         return 3;
     }
-    dprintf(1, "despues de changestate\n");
     free(ip);
     free(port);
-    dprintf(1, "antes de connect_user_database\n");
     err = connect_user_database(alias);
     return err;
 }
@@ -508,7 +549,7 @@ int count_connected() {
 }
 
 int read_connected() {
-    
+    return 0;
 }
 
 int connected_users(char *alias) {
@@ -579,7 +620,7 @@ int save_message(int id, char *from, char *to, char *message) {
     while ((c = fgetc(f)) != EOF) {
         fputc(c, f2);
     }
-    fprintf(f2, "%d: %s %s\n", id, from, message);
+    fprintf(f2, "%d: %s \"%s\"\n", id, from, message);
     
     err = remove(filename);
     if (err == -1) {

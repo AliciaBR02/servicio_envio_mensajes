@@ -7,17 +7,23 @@ import argparse
 import socket
 import threading
 
+keep_connection = False
 socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-def receive_messages(socket_connected, port, user, window):
+
+def client_connection(socket_connected):
     #receive message
-    print("port: ", port)
-    socket_connected.listen(1)
+    socket_connected.listen()
     conn, addr = socket_connected.accept()
-    print("Connected by", addr)
+    print("connected by ", addr)
     while True:
-        msg = conn.recv(256)
-        if msg:
-            print(msg)
+        if not keep_connection:
+            break
+        
+    print("closing connection")
+    socket_connected.close()
+    # kill the thread
+    return
+
 def readNumber(sock):
     a = ''
     while True:
@@ -126,14 +132,35 @@ class client :
         socket_connected.bind(('', 0))
         port = socket_connected.getsockname()[1]
         # create a thread and connect there the socket
-        t = threading.Thread(target=receive_messages, args=(socket_connected, port, user, window))
-        t.start()
+        global keep_connection
+        if keep_connection == False:
+            keep_connection = True
+            connection_thread = threading.Thread(target=client_connection, args=(socket_connected))
+            connection_thread.start()
         s.connect((client._server, client._port))
         try:
             message = "CONNECT\0" + str(len(user)) + "\0" + user + "\0" + str(port) + "\0"
             s.sendall(message.encode("utf-8"))
+            
         finally:
+            # read integer
+            message_id = readNumber(s)
+            if message_id:
+                print("message_id: ", message_id)
+            # read integer
+            length_from = readNumber(s)
+            if length_from:
+                print("length_from: ", length_from)
+            # read string
+            from_user = s.recv(length_from + 1)
+            if from_user:
+                print("from_user: ", from_user.decode("utf-8"))
+            # read integer
+            length_text = readNumber(s)
+            if length_text:
+                print("length_text: ", length_text)
             result = int.from_bytes(s.recv(4), byteorder='little')
+            
             s.close()
         if (result == 0):
             window['_SERVER_'].print("s> CONNECT OK")
@@ -158,7 +185,9 @@ class client :
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((client._server, client._port))
         #kill thread and close socket
-        threading.kill(t)
+        global keep_connection
+        if keep_connection:
+            keep_connection = False
         try:
             s.sendall(b'DISCONNECT\0')
             s.sendall((user).encode("utf-8"))

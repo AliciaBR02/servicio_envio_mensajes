@@ -5,6 +5,8 @@ BIN_FILES = servidor cliente
 
 all: $(OBJS)
 
+cliente: cliente_ip.c
+	$(CC)  $(CFLAGS) $^ -o $@.out
 servidor:  servidor.c operaciones/operaciones.c sockets/sockets.c
 	$(CC)  $(CFLAGS) $^ -o $@.out
 

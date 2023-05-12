@@ -17,6 +17,8 @@
     } user_t;
 
     typedef struct {
+        int length_from;
+        int length_message;
         int id;
         char from[256];
         char message[256];

@@ -5,7 +5,9 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <net/if.h>
+#include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -44,7 +46,6 @@ void process_message(petition_t *pet) {
             pthread_exit(NULL);
         }
         length = atoi(buffer);
-        dprintf(1, "length: %d\n", length);
         char *user = malloc(length + 1);
 
         // receive alias
@@ -55,7 +56,6 @@ void process_message(petition_t *pet) {
             free(buffer);
             pthread_exit(NULL);
         }
-        dprintf(1, "alias: %s\n", user);
         res = registration(user, s_local);
         free(buffer);
         free(user);
@@ -78,7 +78,6 @@ void process_message(petition_t *pet) {
             free(buffer);
             pthread_exit(NULL);
         }
-        dprintf(1, "alias: %s\n", user);
         res = unregistration(user);
         free(buffer);
         free(user);
@@ -102,7 +101,6 @@ void process_message(petition_t *pet) {
             free(buffer);
             pthread_exit(NULL);
         }
-        dprintf(1, "alias: %s\n", user);
 
         char *port_and_ip = malloc(10);
         err = readLine(s_local, port_and_ip, 10);
@@ -115,7 +113,6 @@ void process_message(petition_t *pet) {
         strcat(pet_local.ip, "\0");
         // add pet.ip to port_and_ip
         strcat(pet_local.ip, port_and_ip);
-        dprintf(1, "port and ip: %s\n", pet_local.ip);
         res = connection(user, pet_local.ip, s_local);
         free(user);
         free(port_and_ip);
@@ -131,7 +128,6 @@ void process_message(petition_t *pet) {
             close(s_local);
             pthread_exit(NULL);
         }
-        dprintf(1, "alias: %s\n", user);
         res = disconnection(user);
         free(user);
     //} else if (strcmp("CONNECTEDUSERS", pet_local.op) == 0) {
@@ -148,7 +144,6 @@ void process_message(petition_t *pet) {
             close(s_local);
             pthread_exit(NULL);
         }
-        dprintf(1, "alias: %s\n", user);
         // receive receiver
         err = readLine(s_local, receiver, 257);
         if (err == -1) {
@@ -156,7 +151,6 @@ void process_message(petition_t *pet) {
             close(s_local);
             pthread_exit(NULL);
         }
-        dprintf(1, "receiver: %s\n", receiver);
         // receive message
         err = readLine(s_local, message, 257);
         if (err == -1) {
@@ -164,7 +158,6 @@ void process_message(petition_t *pet) {
             close(s_local);
             pthread_exit(NULL);
         }
-        dprintf(1, "message: %s\n", message);
         res = send_message(user, receiver, message, s_local);
         free(user);
         free(receiver);
@@ -259,7 +252,7 @@ int main(int argc, char *argv[]) {
 
     petition_t pet;
     // infinite loop waiting for requests
-
+    
 
     
     while (1) {
@@ -289,7 +282,6 @@ int main(int argc, char *argv[]) {
         strcpy(pet.ip, inet_ntoa(client_addr.sin_addr));
         // add a newline
         strcat(pet.ip, "\n");
-        dprintf(1, "ip: %s\n", pet.ip);
         // then we process the message
         pthread_create(&thread, &attr, (void *)process_message, (void *)&pet);
 
