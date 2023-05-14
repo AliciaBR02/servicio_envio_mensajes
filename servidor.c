@@ -33,72 +33,58 @@ void process_message(petition_t *pet) {
     pthread_mutex_unlock(&mutex_message);
 
     int err, res;
-    char *buffer = malloc(50); // to read the length of the strings
     int length;
     
     if (strcmp("REGISTER",  pet_local.op) == 0) {
-        // receive length
-        err = readLine(s_local, buffer, sizeof(uint16_t));
-        if (err == -1) {
-            perror("recv");
-            close(s_local);
-            free(buffer);
-            pthread_exit(NULL);
-        }
-        length = atoi(buffer);
-        char *user = malloc(length + 1);
-
         // receive alias
+        char *user = malloc(255);
         err = readLine(s_local, user, 257);
         if (err == -1) {
             perror("recv");
             close(s_local);
-            free(buffer);
             pthread_exit(NULL);
         }
-        res = registration(user, s_local);
-        free(buffer);
+        char *alias = malloc(255);
+        err = readLine(s_local, alias, 256);
+        if (err == -1) {
+            perror("server: readLine");
+            free(alias);
+            pthread_exit(NULL);
+
+        }
+        char *fecha_nac = malloc(20);
+        err = readLine(s_local, fecha_nac, 20);
+        if (err == -1) {
+            perror("server: readLine");
+            free(alias);
+            free(fecha_nac);
+            pthread_exit(NULL);
+        }
+        res = registration(user, alias, fecha_nac);
         free(user);
+        free(alias);
+        free(fecha_nac);
 
     } else if (strcmp("UNREGISTER", pet_local.op) == 0) { 
-        err = readLine(s_local, buffer, sizeof(uint16_t));
-        if (err == -1) {
-            perror("recv");
-            close(s_local);
-            free(buffer);
-            pthread_exit(NULL);
-        }
-        length = atoi(buffer);
-        char *user = malloc(length + 1);
+        char *user = malloc(255);
         // receive alias
-        err = readLine(s_local, user, length + 1);
+        err = readLine(s_local, user, 256);
         if (err == -1) {
             perror("recv");
             close(s_local);
-            free(buffer);
             pthread_exit(NULL);
         }
         res = unregistration(user);
-        free(buffer);
         free(user);
 
     } else if (strcmp("CONNECT", pet_local.op) == 0) {
         // alias
-        err = readLine(s_local, buffer, sizeof(uint16_t));
-        if (err == -1) {
-            perror("recv");
-            close(s_local);
-            free(buffer);
-            pthread_exit(NULL);
-        }
-        length = atoi(buffer);
-        char *user = malloc(length + 1);
+        char *user = malloc(255);
         // receive alias
-        err = readLine(s_local, user, length + 1);
+        err = readLine(s_local, user, 256);
         if (err == -1) {
             perror("recv");
             close(s_local);
-            free(buffer);
             pthread_exit(NULL);
         }
 
@@ -116,7 +102,6 @@ void process_message(petition_t *pet) {
         res = connection(user, pet_local.ip, s_local);
         free(user);
         free(port_and_ip);
-        free(buffer);
 
     } else if (strcmp("DISCONNECT", pet_local.op) == 0) {
 
@@ -130,8 +115,6 @@ void process_message(petition_t *pet) {
         }
         res = disconnection(user);
         free(user);
-    //} else if (strcmp("CONNECTEDUSERS", pet_local.op) == 0) {
-    //    res = connected_users(pet_local.user);
     } else if (strcmp("SEND_MESSAGE", pet_local.op) == 0) {
 
         char *user = malloc(256);
@@ -159,13 +142,31 @@ void process_message(petition_t *pet) {
             pthread_exit(NULL);
         }
         res = send_message(user, receiver, message, s_local);
+        if (res == 0) {
+            // first we send the message/s to the receiver
+            err = send_message_to_receiver(receiver, user);
+            /*if (err != 0) {
+                store_message(receiver, user, message);`    
+            }*/
+        }
         free(user);
         free(receiver);
         free(message);
-    } else {
+    } else if (strcmp("CONNECTEDUSERS", pet_local.op) == 0) {
+        char *user = malloc(256);
+        // receive alias
+        err = readLine(s_local, user, 257);
+        if (err == -1) {
+            perror("recv");
+            close(s_local);
+            pthread_exit(NULL);
+        }
+        connected_users(user, s_local);
+        free(user);
+    }
+        else {
         res = -1;
     }
-    dprintf(1, " end result: %d\n", res);
     // send the result to the client
     err = sendMessage(s_local, (char *)&res, sizeof(char));
     if (err == -1) {
@@ -187,7 +188,6 @@ void process_message(petition_t *pet) {
 // 7- Cerrar el socket
 
 int main(int argc, char *argv[]) {
-    // auxiliar variablesserver_addr.sin_addr.s_addr
     int err;
     ssize_t err2;
 

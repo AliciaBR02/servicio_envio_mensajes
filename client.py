@@ -10,21 +10,34 @@ import threading
 keep_connection = False
 socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-def client_connection(socket_connected):
+def client_connection(socket_connected, window):
     global keep_connection
-    
     # connection for only one client
-    
-    keep_connection = True
-    socket_connected.listen()
-    conn, addr = socket_connected.accept()
-    
-    print("connected by ", addr)
+    socket_connected.listen(10)
     # Release the lock to allow another client to connect
     while keep_connection:
-        ...
-    print("closing connection")
-    conn.close()
+        conn, addr = socket_connected.accept()
+        print("connected by ", addr)
+        try:
+            operation = readMessage(conn)
+            if operation == "SEND_MESSAGE":
+                print("SEND MESSAGE condition")
+                id = int.from_bytes(conn.recv(1), byteorder='little')
+                sender = readMessage(conn)
+                message = readMessage(conn)
+                window['_SERVER_'].print("s> MESSAGE", id, "FROM", sender, "\n", message, "\nEND")
+            elif operation == "SEND_MESS_ACK":
+                id = int.from_bytes(conn.recv(1), byteorder='little')
+                sender = readMessage(conn)
+                receiver = readMessage(conn)
+                window['_SERVER_'].print("s> SEND MESSAGE", id, "FROM", sender, "TO", receiver, "OK")
+        finally:
+            print("closing connection")
+            conn.close()
+    socket_connected.close()
+    print("closing socket")
+    # kill thread
+    return
 
 def readNumber(sock):
     a = ''
@@ -36,6 +49,17 @@ def readNumber(sock):
     if (a == ''):
         return 0
     return(int(a,10))
+
+def readMessage(sock):
+    a = ''
+    while True:
+        msg = sock.recv(1)
+        if (msg == b'\0'):
+            break
+        a += msg.decode()
+        print("a: ", a)
+    return a
+
 
 class client :
 
@@ -62,6 +86,7 @@ class client :
     # * @return OK if successful
     # * @return USER_ERROR if the user is already registered
     # * @return ERROR if another error occurred
+    
     @staticmethod
     def  register(user, window):
         #  Write your code here
@@ -70,17 +95,10 @@ class client :
         s.connect((client._server, client._port))
         try:
             # operation register
-            message = "REGISTER\0" + str(len(user)) + "\0" + user + "\0"
+            message = "REGISTER\0" + user + "\0" + client._username + "\0"+ client._date + "\0"
             s.sendall(message.encode("utf-8"))
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
-        if (result == 0):
-            try:
-                message = str(len(client._username)) + "\0" + client._username + "\0" + str(len(client._date)) + "\0" + client._date + "\0"
-                s.sendall(message.encode("utf-8"))
-                
-            finally:
-                result = int.from_bytes(s.recv(4), byteorder='little')
         s.close()
 
         if (result == 0):
@@ -103,7 +121,7 @@ class client :
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((client._server, client._port))
         try:
-            message = "UNREGISTER\0" + str(len(user)) + "\0" + user + "\0"
+            message = "UNREGISTER\0" + user + "\0"
             s.sendall(message.encode("utf-8"))
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
@@ -131,41 +149,22 @@ class client :
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # look for a free port
-        socket_connected.bind(('', 0))
+        socket_connected.bind(('0.0.0.0', 0))
         port = socket_connected.getsockname()[1]
         # create a thread and connect there the socket
-        global keep_connection
+        global keep_connection, connection_thread
         if keep_connection == False:
-            connection_thread = threading.Thread(target=client_connection, name='Daemon', args=(socket_connected,))
+            keep_connection = True
+            connection_thread = threading.Thread(target=client_connection, name='Daemon', args=(socket_connected, window))
             connection_thread.start()
         s.connect((client._server, client._port))
         try:
-            message = "CONNECT\0" + str(len(user)) + "\0" + user + "\0" + str(port) + "\0"
+            message = "CONNECT\0" + user + "\0" + str(port) + "\0"
             s.sendall(message.encode("utf-8"))
             
         finally:
             # check if there are messages by receiving the first integer
             result = readNumber(s)
-            print("result: ", result)
-            if result == 1:
-                # read integer
-                message_id = readNumber(s)
-                if message_id:
-                    print("message_id: ", message_id)
-                # read integer
-                length_from = readNumber(s)
-                if length_from:
-                    print("length_from: ", length_from)
-                # read string
-                from_user = s.recv(length_from + 1)
-                if from_user:
-                    print("from_user: ", from_user.decode("utf-8"))
-                # read integer
-                length_text = readNumber(s)
-                if length_text:
-                    print("length_text: ", length_text)
-                result = int.from_bytes(s.recv(4), byteorder='little')
-            
             s.close()
         if (result == 0):
             window['_SERVER_'].print("s> CONNECT OK")
@@ -276,23 +275,26 @@ class client :
             # comando
             s.sendall(b'CONNECTEDUSERS\0')
             # usuario emisor
+            print("alias: ", client._alias)
             s.sendall((client._alias).encode("utf-8"))
             s.sendall(b'\0')
-            # port and ip vacio
-            s.sendall(b'\0')
-            # usuario receptor
-            s.sendall(b'\0')
-            # mensaje
-            s.sendall(b'\0')
 
-            #receive message id from socket
-            id = int.from_bytes(s.recv(4), byteorder='little')
         finally:
             result = int.from_bytes(s.recv(4), byteorder='little')
+            print("result: ", result)
+            if result == 0:
+                num_users = int.from_bytes(s.recv(4), byteorder='little')
+                i = 1
+                string = "s> CONNECTED USERS (" + str(num_users) + " users connected) OK - "
+                string += readMessage(s)
+                while i < num_users:
+                    user = readMessage(s)
+                    strint += ",  " + user
+                    i += 1
             s.close()
 
         if (result == 0):
-            window['_SERVER_'].print("s> CONNECTED USERS")
+            window['_SERVER_'].print(string)
         elif (result == 1):
             window['_SERVER_'].print("s> CONNECTED USERS FAIL / USER IS NOT CONNECTED")
         else:
@@ -306,7 +308,7 @@ class client :
         layout_register = [[sg.Text('Ful Name:'),sg.Input('Text',key='_REGISTERNAME_', do_not_clear=True, expand_x=True)],
                             [sg.Text('Alias:'),sg.Input('Text',key='_REGISTERALIAS_', do_not_clear=True, expand_x=True)],
                             [sg.Text('Date of birth:'),sg.Input('',key='_REGISTERDATE_', do_not_clear=True, expand_x=True, disabled=True, use_readonly_for_disable=False),
-                            sg.CalendarButton("Select Date",close_when_date_chosen=True, target="_REGISTERDATE_", format='%d-%m-%Y',size=(10,1))],
+                            sg.CalendarButton("Select Date",close_when_date_chosen=True, target="_REGISTERDATE_", format='%d/%m/%Y',size=(10,1))],
                             [sg.Button('SUBMIT', button_color=('white', 'blue'))]
                             ]
 

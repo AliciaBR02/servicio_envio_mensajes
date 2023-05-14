@@ -1,3 +1,3 @@
 #!/bin/bash
 
-make && ./servidor.out -p 8888
+make re && ./servidor.out -p 8888
