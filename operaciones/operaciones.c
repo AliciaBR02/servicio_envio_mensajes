@@ -619,6 +619,9 @@ int send_message(char *from, char *to, char *message, int socket) {
     return res;
 }
 
+int send_stored_message(char *receiver, char *sender) {
+    return 0;
+}
 int send_message_to_receiver(char *receiver, char *sender) {
     int socket_receiver, err;
 
@@ -630,8 +633,8 @@ int send_message_to_receiver(char *receiver, char *sender) {
         return 2;
     }
     if (is_connected(receiver) == 0) {
-        // store message
-        // send id to sender
+        send_stored_message(receiver, sender);
+        return 1;
     }
     socket_receiver = create_socket(receiver);
     if (socket_receiver == -1) {
@@ -651,6 +654,7 @@ int send_message_to_receiver(char *receiver, char *sender) {
     ssize_t read;
     int flag, flag2 = 0;
     char c;
+    char *buffer = malloc(1024);
 
     f = fopen(filename, "r");
     if (f == NULL) {

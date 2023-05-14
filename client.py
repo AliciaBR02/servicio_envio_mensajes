@@ -6,7 +6,10 @@ from enum import Enum
 import argparse
 import socket
 import threading
+import zeep
 
+wsdl_url = "http://localhost:8000/?wsdl"
+soap = zeep.Client(wsdl=wsdl_url) 
 keep_connection = False
 socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -262,7 +265,42 @@ class client :
     # * @return ERROR the user does not exist or another error occurred
     @staticmethod
     def  sendAttach(user, message, file, window):
-        window['_SERVER_'].print("s> SENDATTACH MESSAGE OK")
+        # read the file
+        f = open(file, "r")
+        file_content = f.read()
+        f.close()
+        to_send = soap.service.transform_string(file_content)
+        print("to_send: ", to_send)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((client._server, client._port))
+        try:
+            # comando
+            s.sendall(b'SEND_MESSAGE\0')
+            # usuario emisor
+            s.sendall((client._alias).encode("utf-8"))
+            # port and ip vacio
+            s.sendall(b'\0')
+            # usuario receptor
+            s.sendall(user.encode("utf-8"))
+            s.sendall(b'\0')
+            # mensaje
+            s.sendall((message).encode("utf-8"))
+            s.sendall(b'\0')
+
+            #receive message id from socket
+            id = int.from_bytes(s.recv(4), byteorder='little')
+        finally:
+            result = int.from_bytes(s.recv(4), byteorder='little')
+            s.close()
+
+        if (result == 0):
+            window['_SERVER_'].print("s> SENDATTACH MESSAGE OK")
+        elif (result == 1):
+            window['_SERVER_'].print("s> SEND FAIL/USER DOES NOT EXIST")
+        else:
+            window['_SERVER_'].print("s> SEND FAIL")
+        
+        
         print("SEND ATTACH " + user + " " + message + " " + file)
         #  Write your code here
         return client.RC.ERROR
