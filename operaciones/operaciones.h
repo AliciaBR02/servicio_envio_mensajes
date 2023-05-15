@@ -6,8 +6,9 @@
     int connection(char *alias, char *port_and_ip, int socket);
     int disconnection(char *alias);
     int send_message(char *from, char *to, char *message, int socket);
-    int send_message_to_receiver(char *receiver, char *sender);
+    int manage_sent_message(char *receiver, char *sender, char *text);
     int connected_users(char *user, int socket);
+    int get_message_id(char *receiver, char *sender, char *message);
 
     typedef struct {
         char *nombre;

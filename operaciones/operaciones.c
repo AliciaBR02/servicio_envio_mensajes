@@ -94,7 +94,7 @@ int delete_alias(char *alias) {
     f = fopen(namedatabase, "r");
     f2 = fopen(temp, "w");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read2\n");
         return 2;
     }
     if (f2 == NULL) {
@@ -115,7 +115,6 @@ int delete_alias(char *alias) {
 
     fclose(f);
     fclose(f2);
-    free(line);
 
     err = remove(namedatabase);
     if (err == -1) {
@@ -124,7 +123,7 @@ int delete_alias(char *alias) {
     }
     err = rename(temp, namedatabase);
     if (err == -1) {
-        perror("server: rename");
+        perror("server: rename1");
         return 2;
     }
     return 0;
@@ -149,7 +148,7 @@ int connect_user_database(char *alias) {
     FILE *f;
     f = fopen(connected_database, "a");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read3\n");
         return 2;
     }
     fprintf(f, "%s\n", alias);
@@ -159,7 +158,7 @@ int connect_user_database(char *alias) {
 
 int disconnect_user_database(char *alias) {
     char *connected_database = "database/connected.txt";
-    char *tempuser = "database/temp_connected.txt";
+    char *temp_connected_database = "database/temp_connected.txt";
     char *line = malloc(256);
     size_t len = 0;
     ssize_t read;
@@ -170,12 +169,12 @@ int disconnect_user_database(char *alias) {
 
     f = fopen(connected_database, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read4\n");
         return 2;
     }
-    f2 = fopen(tempuser, "w");
+    f2 = fopen(temp_connected_database, "w");
     if (f2 == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read5\n");
         fclose(f);
         return 2;
     }
@@ -191,9 +190,9 @@ int disconnect_user_database(char *alias) {
         perror("server: remove");
         return 2;
     }
-    err = rename(tempuser, connected_database);
+    err = rename(temp_connected_database, connected_database);
     if (err == -1) {
-        perror("server: rename");
+        perror("server: rename2");
         return 2;
     }
     return 0;
@@ -201,22 +200,24 @@ int disconnect_user_database(char *alias) {
 
 int change_state(char *alias, int state, char *ip, char *port) {
     FILE *f, *f2;
-    char *filename = malloc(256);
-    char *tempuser = malloc(256);
+    char *filename = malloc(strlen(alias) + 14);
+    char *tempuser = malloc(strlen(alias) + 19);
     int err;
     sprintf(tempuser, "database/temp_%s.txt", alias);
     sprintf(filename, "database/%s.txt", alias);
 
     f = fopen(filename, "r+");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read6\n");
         free(filename);
+        free(tempuser);
         return 2;
     }
     f2 = fopen(tempuser, "w");
     if (f2 == NULL) {
         perror("server-fileopen: write\n");
         free(filename);
+        free(tempuser);
         fclose(f);
         return 2;
     }
@@ -245,10 +246,9 @@ int change_state(char *alias, int state, char *ip, char *port) {
         fprintf(f2, "%s", string);
     }
     err = remove(filename);
-    if (err == -1) {
+    if (err != 0) {
         fclose(f);
         fclose(f2);
-        free(line);
         free(string);
         free(filename);
         free(tempuser);
@@ -256,19 +256,17 @@ int change_state(char *alias, int state, char *ip, char *port) {
         return 2;
     }
     err = rename(tempuser, filename);
-    if (err == -1) {
+    if (err != 0) {
         fclose(f);
         fclose(f2);
-        free(line);
         free(string);
         free(filename);
         free(tempuser);
-        perror("server: rename");
+        perror("server: rename3changestate");
         return 2;
     }
     fclose(f);
     fclose(f2);
-    free(line);
     free(filename);
     free(string);
     free(tempuser);
@@ -288,7 +286,7 @@ int is_connected(char *alias) {
     
     f = fopen(filename, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read7\n");
         free(filename);
         return 2;
     }
@@ -323,7 +321,6 @@ int establish_connection(char *ip, char *port) {
     server_addr.sin_addr.s_addr = inet_addr(ip);
     err = connect(sd, (struct sockaddr *) &server_addr,  sizeof(server_addr));
 	if (err == -1) {
-		perror("connect");
 		return -1;
 	}
     return sd;
@@ -345,7 +342,7 @@ int create_socket(char *user) {
     sprintf(filename, "database/%s.txt", user);
     f = fopen(filename, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read8\n");
         free(ip);
         free(port);
         free(filename);
@@ -386,10 +383,12 @@ int messages_connected_user(char *receiver) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
+    int socket_receiver, socket_sender;
+    int flag, flag1 = 0;
 
-    f = fopen(filename, "r");
+    f = fopen(filename, "r+");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read9\n");
         free(filename);
         free(tempuser);
         return 2;
@@ -408,48 +407,110 @@ int messages_connected_user(char *receiver) {
             break;
         }
     }
+    
+    socket_receiver = create_socket(receiver);
+    if (socket_receiver == -1) {
+        free(filename);
+        free(tempuser);
+        fclose(f);
+        fclose(f2);
+        return 3;
+    }
     // check message by message if the sender is connected
     message_t *message = malloc(sizeof(message_t));
     while ((read = getline(&line, &len, f)) != -1) {
         sscanf(line, "%d: %s | %s", &message->id, message->from, message->message);
-        err = is_connected(message->from);
-        if (err == 0) {
-            // do nothing
-            fprintf(f2, "%s", line);
-            continue;
-        }
         // send message to receiver
-        err = send_message_to_receiver(receiver, message->from);
+        err = sendMessage(socket_receiver, "SEND_MESSAGE", strlen("SEND_MESSAGE") + 1);
         if (err != 0) {
-            fprintf(f2, "%s", line);
+            close(socket_receiver);
+            flag = 1;
             break;
         }
+        strcat(message->from, "\0");
+        dprintf(1, "from %s\n", message->from);
+        err = sendMessage(socket_receiver, message->from, 256);
+        if (err != 0) {
+            close(socket_receiver);
+            flag = 1;
+            break;
+        }
+        err = sendMessage(socket_receiver, (char *)&(message->id), 1);
+        if (err != 0) {
+            close(socket_receiver);
+            flag = 1;
+            break;
+        }
+        // set message to 0
+        memset(message->message, 0, 256);
+        strcat(message->message, "\0");
+        dprintf(1, "message %s\n", message->message);
+        err = sendMessage(socket_receiver, message->message, 256);
+        if (err != 0) {
+            close(socket_receiver);
+            flag = 1;
+            break;
+        }
+        // send ACK to sender
+        socket_sender = create_socket(message->from);
+        if (socket_sender == -1) {
+            close(socket_receiver);
+            flag1 = 1;
+            break;
+        }
+        err = sendMessage(socket_sender, "SEND_MESS_ACK", strlen("SEND_MESS_ACK") + 1);
+        if (err != 0) {
+            close(socket_receiver);
+            flag1 = 1;
+            break;
+        }
+        err = sendMessage(socket_sender, (char *)&(message->id), 1);
+        if (err != 0) {
+            close(socket_receiver);
+            flag1 = 1;
+            break;
+        }
+        close(socket_sender);
     }
-    while ((read = getline(&line, &len, f)) != -1) {
-        fprintf(f2, "%s", line);
+
+    if (flag == 1) {
+        while ((read = getline(&line, &len, f)) != -1) {
+            fprintf(f2, "%s", line);
+        }
     }
+    if (flag1 == 1) {
+        // dont write the last message, because it has been already treated
+        read = getline(&line, &len, f);
+        while ((read = getline(&line, &len, f)) != -1) {
+            fprintf(f2, "%s", line);
+        }
+    }
+
     err = remove(filename);
     if (err != 0) {
         free(filename);
         free(tempuser);
-        free(line);
         free(message);
         fclose(f);
         fclose(f2);
+        perror("server: remove");
         return 2;
     }
     err = rename(tempuser, filename);
     if (err != 0) {
         free(filename);
         free(tempuser);
-        free(line);
         free(message);
         fclose(f);
         fclose(f2);
+        perror("server: rename3messages connected user");
         return 2;
     }
     fclose(f);
     fclose(f2);
+    free(filename);
+    free(tempuser);
+    free(message);
     return 0;
 }
 int connection(char *alias, char *port_and_ip, int socket) {
@@ -470,27 +531,18 @@ int connection(char *alias, char *port_and_ip, int socket) {
     strcpy(ip, token);
     token = strtok(NULL, "\0");
     strcpy(port, token);
-
-    /* YA TENEMOS LOS DATOS NECESARIOS */
-    
-    /* ACTUALIZAR BASE DE DATOS */
-
     err = change_state(alias, 1, ip, port);
     if (err != 0) {
         free(ip);
         free(port);
-        free(token);
         return 3;
     }
     free(ip);
     free(port);
     err = connect_user_database(alias);
+    if (err != 0) return err;
     err = messages_connected_user(alias);
-    if (err != 0) {
-        free(ip);
-        free(port);
-        return err;
-    }
+    if (err != 0) return err;
     return err;
 }
 
@@ -518,7 +570,7 @@ int count_connected() {
     //open file
     f = fopen(filename, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read10\n");
         return 2;
     }
     while ((read = getline(&line, &len, f)) != -1) {
@@ -533,7 +585,7 @@ int read_connected() {
     return 0;
 }
 
-int get_message_id(char *to) {
+int get_last_id(char *to) {
     FILE *f;
     char *filename = malloc(256);
     char *line = NULL;
@@ -544,9 +596,8 @@ int get_message_id(char *to) {
     sprintf(filename, "database/%s.txt", to);
     f = fopen(filename, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read11\n");
         free(filename);
-        free(line);
         return 2;
     }
     while ((read = getline(&line, &len, f)) != -1) {
@@ -556,7 +607,6 @@ int get_message_id(char *to) {
     }
     fclose(f);
     free(filename);
-    free(line);
     return id;
 }
 int save_message(int id, char *from, char *to, char *message) {
@@ -564,7 +614,9 @@ int save_message(int id, char *from, char *to, char *message) {
     int len_to = strlen(to);
     char *filename = malloc(len_to + 13);
     char *tempuser = malloc(strlen(to) + 19);
-    char c;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
     int err;
 
     sprintf(tempuser, "database/temp_%s.txt", to);
@@ -586,14 +638,17 @@ int save_message(int id, char *from, char *to, char *message) {
         return 2;
     }
 
-    while ((c = fgetc(f)) != EOF) {
-        fputc(c, f2);
+    while (read = getline(&line, &len, f) != -1) {
+        fprintf(f2, "%s", line);
+        if (strstr (line, "Mensajes:") != NULL) {
+            break;
+        }
     }
     fprintf(f2, "%d: %s | %s\n", id, from, message);
     
+    fclose(f);
     err = remove(filename);
     if (err == -1) {
-        fclose(f);
         fclose(f2);
         free(filename);
         free(tempuser);
@@ -602,14 +657,12 @@ int save_message(int id, char *from, char *to, char *message) {
     }
     err = rename(tempuser, filename);
     if (err == -1) {
-        fclose(f);
         fclose(f2);
         free(filename);
         free(tempuser);
-        perror("server: rename");
+        perror("server: rename4");
         return 2;
     }
-    fclose(f);
     fclose(f2);
     free(filename);
     free(tempuser);    
@@ -622,7 +675,7 @@ int send_message(char *from, char *to, char *message, int socket) {
     err2 = search_user(to);
     if (err != 0 && err2 != 0) {
         // get last message id
-        id = get_message_id(to);
+        id = get_last_id(to);
         // save message
         err = save_message(id, from, to, message);
         if (err != 0) return 2;
@@ -637,30 +690,72 @@ int send_message(char *from, char *to, char *message, int socket) {
     return res;
 }
 
-int send_stored_message(char *receiver, char *sender) {
-    return 0;
-}
-int send_message_to_receiver(char *receiver, char *sender) {
-    int socket_receiver, err;
+int get_message_id(char *receiver, char *sender, char *message) {
+    // get the id of the message from the sender in the receiver's file
+    FILE *f;
+    char *filename = malloc(strlen(receiver) + 14);
+    char *token;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int id = 0;
 
-    dprintf(1, "a punto de enviar el mensaje\n");
-    if (is_connected(sender) == 0) return 1;
-    int socket_sender = create_socket(sender);
-    if (socket_sender == -1) {
-        disconnection(sender);
+    sprintf(filename, "database/%s.txt", receiver);
+
+    f = fopen(filename, "r");
+    if (f == NULL) {
+        perror("server-fileopen: read12\n");
+        free(filename);
         return 2;
     }
-    if (is_connected(receiver) == 0) {
-        send_stored_message(receiver, sender);
-        return 1;
+
+    while (read = getline(&line, &len, f) != -1) {
+        if (strstr(line, sender) != NULL && strstr(line, message) != NULL) {
+            token = strtok(line, ":");
+            id = atoi(token);
+            break;
+        }
     }
-    socket_receiver = create_socket(receiver);
+
+    fclose(f);
+    free(filename);
+    return id;
+}
+
+int manage_sent_message(char *receiver, char *sender, char *text) {
+    int err;
+    // me da igual que el sender esté conectado, pero si está conectado le tengo 
+    // que mandar el ACK
+
+    // si el receiver está conectado le mando todo el mensaje
+    // si no está conectado, lo guardo en su base de datos y lo anuncio por la 
+    // terminal del servidor
+
+    // en esta funcion voy iterando sobre los mensajes del receiver
+        // dado el sender, miro si está conectado 
+
+
+    if (is_connected(receiver) == 0)   return 0;
+    // ahora haremos este dprintf s> SEND MESSAGE <id> FROM sender TO receiver
+
+    // asi que vamos a buscar en el fichero del receiver el sender y el mensaje, 
+    // y cuando lo encontremos lo eliminamos y se lo enviamos al receiver por su socket
+    int sender_connected = is_connected(sender);
+    int socket_sender;
+    if (sender_connected != 0) {
+        // if not, we are still sending it because the receiver IS connected
+        socket_sender = create_socket(sender);
+        if (socket_sender == -1) {
+            disconnection(sender);
+            return 2;
+        }
+    }
+    int socket_receiver = create_socket(receiver);
     if (socket_receiver == -1) {
         disconnection(receiver);
         return 2;
     }
 
-    dprintf(1, "socket creado\n");
     // look in the receiver database messages from the sender
     char *filename = malloc(strlen(receiver) + 14);
     char *tempuser = malloc(strlen(receiver) + 19);
@@ -670,11 +765,11 @@ int send_message_to_receiver(char *receiver, char *sender) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    int flag, flag2 = 0;
+    int flag, flag1 = 0;
 
-    f = fopen(filename, "r");
+    f = fopen(filename, "r+");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
+        perror("server-fileopen: read13\n");
         free(filename);
         free(tempuser);
         return 2;
@@ -693,13 +788,17 @@ int send_message_to_receiver(char *receiver, char *sender) {
             break;
         }
     }
-    dprintf(1, "SENDER %s\n", sender);
     message_t *message = malloc(sizeof(message_t));
     while (read = getline(&line, &len, f) != -1) {
         dprintf(1, "LINE %s\n", line);
         if (strstr(line, sender) != NULL) {
             // id: from "message"
             sscanf(line, "%d: %s | %s", &message->id, message->from, message->message);
+            dprintf(1, "id %d\n", message->id);
+            dprintf(1, "from %s\n", message->from);
+            dprintf(1, "message %s\n", message->message);
+            strcat(message->from, "\0");
+            strcat(message->message, "\0");
             err = sendMessage(socket_receiver, "SEND_MESSAGE", strlen("SEND_MESSAGE") + 1);
             if (err != 0) {
                 close(socket_receiver);
@@ -708,7 +807,7 @@ int send_message_to_receiver(char *receiver, char *sender) {
             }
             strcat(message->from, "\0");
             dprintf(1, "from %s\n", message->from);
-            err = sendMessage(socket_receiver, message->from, 256);
+            err = sendMessage(socket_receiver, message->from, strlen(message->from) + 1);
             if (err != 0) {
                 close(socket_receiver);
                 flag = 1;
@@ -720,9 +819,11 @@ int send_message_to_receiver(char *receiver, char *sender) {
                 flag = 1;
                 break;
             }
+            // set message to 0
+            memset(message->message, 0, 256);
             strcat(message->message, "\0");
             dprintf(1, "message %s\n", message->message);
-            err = sendMessage(socket_receiver, message->message, 256);
+            err = sendMessage(socket_receiver, message->message, strlen(message->message) + 1);
             if (err != 0) {
                 close(socket_receiver);
                 flag = 1;
@@ -730,123 +831,136 @@ int send_message_to_receiver(char *receiver, char *sender) {
             }
 
             /* SEND ACK TO THE SENDER */
-            err = sendMessage(socket_sender, "SEND_MESS_ACK", strlen("SEND_MESS_ACK") + 1);
-            if (err != 0) {
-                close(socket_sender);
-                flag2 = 1;
-                break;
+            if (sender_connected != 0) {
+                err = sendMessage(socket_sender, "SEND_MESS_ACK", strlen("SEND_MESS_ACK") + 1);
+                if (err != 0) {
+                    close(socket_sender);
+                    flag1 = 1;
+                    break;
+                }
+                err = sendMessage(socket_sender, (char *)&message->id, 1);
+                if (err != 0) {
+                    close(socket_sender);
+                    flag1 = 1;
+                    break;
+                }
+                strcat(sender, "\0");
+                err = sendMessage(socket_sender, sender, 256);
+                if (err != 0) {
+                    close(socket_sender);
+                    flag1 = 1;
+                    break;
+                }
+                strcat(receiver, "\0");
+                err = sendMessage(socket_sender, receiver, 256);
+                if (err != 0) {
+                    close(socket_sender);
+                    flag1 = 1;
+                    break;
+                }
             }
-            err = sendMessage(socket_sender, (char *)&message->id, 1);
-            if (err != 0) {
-                close(socket_sender);
-                flag2 = 1;
-                break;
-            }
-            strcat(sender, "\0");
-            err = sendMessage(socket_sender, sender, 256);
-            if (err != 0) {
-                close(socket_sender);
-                flag2 = 1;
-                break;
-            }
-            strcat(receiver, "\0");
-            err = sendMessage(socket_sender, receiver, 256);
-            if (err != 0) {
-                close(socket_sender);
-                flag2 = 1;
-                break;
-            }
+            dprintf(1, "s> SEND MESSAGE %d FROM %s TO %s\n", message->id, sender, receiver);
         } else {
             fprintf(f2, "%s", line);
         }
     }
+    free(message);
     // copy the rest of the file
-    if (line != NULL) {fprintf(f2, "%s", line);}
-    while (read = getline(&line, &len, f) != -1) {
-        fprintf(f2, "%s", line);
+    if (flag == 1) {
+        while ((read = getline(&line, &len, f)) != -1) {
+            fprintf(f2, "%s", line);
+        }
     }
-    if (flag == 0) { // communication problems -> disconnect user
-        disconnection(receiver);
+    if (flag1 == 1) {
+        // dont write the last message, because it has been already treated
+        read = getline(&line, &len, f);
+        while ((read = getline(&line, &len, f)) != -1) {
+            fprintf(f2, "%s", line);
+        }
     }
     err = remove(filename);
     if (err == -1) {
+        fclose(f);
         perror("server: remove");
         free(filename);
         free(tempuser);
-        fclose(f);
         fclose(f2);
         close(socket_receiver);
         return 2;
     }
     err = rename(tempuser, filename);
     if (err == -1) {
-        perror("server: rename");
+        perror("server: rename5");
+        fclose(f);
         free(filename);
         free(tempuser);
-        fclose(f);
         fclose(f2);
         close(socket_receiver);
         return 2;
     }
     close(socket_receiver);
-    fclose(f);
     fclose(f2);
+    fclose(f);
     free(filename);
     free(tempuser);
-    free(message);
-    return 0;
+    if (flag == 1) { // communication problems -> disconnect user
+        disconnection(receiver);
+    }
+    return 1;
 }
 
 int connected_users(char *user, int socket) {
-    int err, res;
+    char err, res;
     err = search_user(user);
     if (err == 0) {
         res = 2;
-        err = sendMessage(socket, (char *)&res, sizeof(int));
+        err = sendMessage(socket, (char *)&res, 1);
         if (err != 0) return 2;
         return 2;
     }
     err = is_connected(user);
     if (err == 0) {
         res = 1;
-        err = sendMessage(socket, (char *)&res, sizeof(int));
+        err = sendMessage(socket, (char *)&res, 1);
         if (err != 0) return 2;
         return 1;
     }
     res = 0;
-    err = sendMessage(socket, (char *)&res, sizeof(int));
+    err = sendMessage(socket, (char *)&res, 1);
     if (err != 0) return 2;
     char *filename = "database/connected.txt";
     FILE *f;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    char *username = malloc(255);
     //count_connected, read_connected, return 0
     res = count_connected();
-    err = sendMessage(socket, (char *)&res, sizeof(int));
+    err = sendMessage(socket, (char *)&res, 1);
     if (err != 0) {
-        free(username);
         return 2;
     }
     f = fopen(filename, "r");
     if (f == NULL) {
-        perror("server-fileopen: read\n");
-        free(username);
+        perror("server-fileopen: read1\n");
         return 2;
     }
+    char *username = malloc(256);
+    char *token = malloc(255);
     while ((read = getline(&line, &len, f)) != -1) {
-        sscanf(line, "%s\n", username);
-        dprintf(1, "username %s\n", username);
+        memset(username, 0, 256);
+        token = strtok(line, "\n");
+        strcpy(username, token);
         strcat(username, "\0");
-        err = sendMessage(socket, username, 256);
+        err = sendMessage(socket, username, strlen(username) + 1);
         if (err != 0) {
             fclose(f);
             free(username);
+            free(token);
             return 2;
         }
     }
     fclose(f);
     free(username);
+    free(token);
     return 0;
 }

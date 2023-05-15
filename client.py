@@ -15,12 +15,18 @@ soap = zeep.Client(wsdl=wsdl_url)
     
 def client_connection(socket_connected, window):
     global keep_connection
+    print("keep bool:", keep_connection)
     # connection for only one client
     socket_connected.listen(10)
     # Release the lock to allow another client to connect
     while keep_connection:
+        print("hi")
         conn, addr = socket_connected.accept()
         print("connected by ", addr)
+        print("keep_connection: ", keep_connection)
+        if keep_connection == False:
+            print("false")
+            break;
         try:
             operation = readMessage(conn)
             if operation == "SEND_MESSAGE":
@@ -32,8 +38,9 @@ def client_connection(socket_connected, window):
                 id = int.from_bytes(conn.recv(1), byteorder='little')
                 window['_SERVER_'].print("s> SEND MESSAGE", id, "OK")
         finally:
-            print("closing connection")
-            conn.close()
+            # print("closing connection")
+            # conn.close()
+            ...
     socket_connected.close()
     print("closing socket")
     # kill thread
@@ -57,7 +64,6 @@ def readMessage(sock):
         if (msg == b'\0'):
             break
         a += msg.decode()
-        print("a: ", a)
     return a
 
 
@@ -190,8 +196,7 @@ class client :
         s.connect((client._server, client._port))
         #kill thread and close socket
         global keep_connection
-        if keep_connection:
-            keep_connection = False
+        keep_connection = False
         try:
             s.sendall(b'DISCONNECT\0')
             s.sendall((user).encode("utf-8"))
@@ -261,43 +266,7 @@ class client :
     # * @return USER_ERROR if the user is not connected (the message is queued for delivery)
     # * @return ERROR the user does not exist or another error occurred
     @staticmethod
-    def  sendAttach(user, message, file, window):
-        # read the file
-        f = open(file, "r")
-        file_content = f.read()
-        f.close()
-        to_send = soap.service.transform_string(file_content)
-        print("to_send: ", to_send)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((client._server, client._port))
-        try:
-            # comando
-            s.sendall(b'SEND\0')
-            # usuario emisor
-            s.sendall((client._alias).encode("utf-8"))
-            # port and ip vacio
-            s.sendall(b'\0')
-            # usuario receptor
-            s.sendall(user.encode("utf-8"))
-            s.sendall(b'\0')
-            # mensaje
-            s.sendall((message).encode("utf-8"))
-            s.sendall(b'\0')
-
-            #receive message id from socket
-            id = int.from_bytes(s.recv(4), byteorder='little')
-        finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
-            s.close()
-
-        if (result == 0):
-            window['_SERVER_'].print("s> SENDATTACH MESSAGE OK")
-        elif (result == 1):
-            window['_SERVER_'].print("s> SEND FAIL/USER DOES NOT EXIST")
-        else:
-            window['_SERVER_'].print("s> SEND FAIL")
-        
-        
+    def  sendAttach(user, message, file, window):        
         print("SEND ATTACH " + user + " " + message + " " + file)
         #  Write your code here
         return client.RC.ERROR
@@ -310,15 +279,13 @@ class client :
             # comando
             s.sendall(b'CONNECTEDUSERS\0')
             # usuario emisor
-            print("alias: ", client._alias)
             s.sendall((client._alias).encode("utf-8"))
             s.sendall(b'\0')
 
         finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
-            print("result: ", result)
+            result = int.from_bytes(s.recv(1), byteorder='little')
             if result == 0:
-                num_users = int.from_bytes(s.recv(4), byteorder='little')
+                num_users = int.from_bytes(s.recv(1), byteorder='little')
                 i = 1
                 string = "s> CONNECTED USERS (" + str(num_users) + " users connected) OK - "
                 string += readMessage(s)

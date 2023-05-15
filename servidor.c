@@ -20,6 +20,7 @@ pthread_mutex_t mutex_message;
 int not_message_copied = 1;
 
 
+
 // function to procSess the message and execute the requested operation
 void process_message(petition_t *pet) {
     petition_t pet_local = *pet;
@@ -61,6 +62,11 @@ void process_message(petition_t *pet) {
             pthread_exit(NULL);
         }
         res = registration(user, alias, fecha_nac);
+        if (res == 0) {
+            dprintf(1, "s> REGISTER %s OK\n", user);
+        } else {
+            dprintf(1, "s> REGISTER %s FAIL\n", user);
+        }
         free(user);
         free(alias);
         free(fecha_nac);
@@ -75,6 +81,11 @@ void process_message(petition_t *pet) {
             pthread_exit(NULL);
         }
         res = unregistration(user);
+        if (res == 0) {
+            dprintf(1, "s> UNREGISTER %s OK\n", user);
+        } else {
+            dprintf(1, "s> UNREGISTER %s FAIL\n", user);
+        }
         free(user);
 
     } else if (strcmp("CONNECT", pet_local.op) == 0) {
@@ -100,6 +111,11 @@ void process_message(petition_t *pet) {
         // add pet.ip to port_and_ip
         strcat(pet_local.ip, port_and_ip);
         res = connection(user, pet_local.ip, s_local);
+        if (res == 0) {
+            dprintf(1, "s> CONNECT %s OK\n", user);
+        } else {
+            dprintf(1, "s> CONNECT %s FAIL\n", user);
+        }
         free(user);
         free(port_and_ip);
 
@@ -114,6 +130,11 @@ void process_message(petition_t *pet) {
             pthread_exit(NULL);
         }
         res = disconnection(user);
+        if (res == 0) {
+            dprintf(1, "s> DISCONNECT %s OK\n", user);
+        } else {
+            dprintf(1, "s> DISCONNECT %s FAIL\n", user);
+        }
         free(user);
     } else if (strcmp("SEND", pet_local.op) == 0) {
 
@@ -144,10 +165,11 @@ void process_message(petition_t *pet) {
         res = send_message(user, receiver, message, s_local);
         if (res == 0) {
             // first we send the message/s to the receiver
-            err = send_message_to_receiver(receiver, user);
-            /*if (err != 0) {
-                store_message(receiver, user, message);`    
-            }*/
+            err = manage_sent_message(receiver, user, message);
+            if (err != 1) { // si rec no esta conectado Y si ha habido fallo de comunicacion o ficheros
+                err = get_message_id(receiver, user, message);
+                dprintf(1, "s> MESSAGE %d FROM %s TO %s STORED\n", err, user, receiver);
+            }
         }
         free(user);
         free(receiver);
@@ -161,7 +183,12 @@ void process_message(petition_t *pet) {
             close(s_local);
             pthread_exit(NULL);
         }
-        connected_users(user, s_local);
+        err = connected_users(user, s_local);
+        if (res == 0) {
+            dprintf(1, "s> CONNECTEDUSERS OK\n");
+        } else {
+            dprintf(1, "s> CONNECTEDUSERS FAIL\n");
+        }
         free(user);
     }
         else {
@@ -273,7 +300,6 @@ int main(int argc, char *argv[]) {
             close(sc);
             return -1;
         }
-        dprintf(1, "operation: %s\n", pet.op);
         pet.s = sc;
         // we copy the ip of the client
         strcpy(pet.ip, inet_ntoa(client_addr.sin_addr));
