@@ -8,11 +8,11 @@ import socket
 import threading
 import zeep
 
-wsdl_url = "http://localhost:8000/?wsdl"
-soap = zeep.Client(wsdl=wsdl_url) 
 keep_connection = False
 socket_connected = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+wsdl_url = "http://localhost:8000/?wsdl"
+soap = zeep.Client(wsdl=wsdl_url) 
+    
 def client_connection(socket_connected, window):
     global keep_connection
     # connection for only one client
@@ -24,16 +24,13 @@ def client_connection(socket_connected, window):
         try:
             operation = readMessage(conn)
             if operation == "SEND_MESSAGE":
-                print("SEND MESSAGE condition")
-                id = int.from_bytes(conn.recv(1), byteorder='little')
                 sender = readMessage(conn)
+                id = int.from_bytes(conn.recv(1), byteorder='little')
                 message = readMessage(conn)
                 window['_SERVER_'].print("s> MESSAGE", id, "FROM", sender, "\n", message, "\nEND")
             elif operation == "SEND_MESS_ACK":
                 id = int.from_bytes(conn.recv(1), byteorder='little')
-                sender = readMessage(conn)
-                receiver = readMessage(conn)
-                window['_SERVER_'].print("s> SEND MESSAGE", id, "FROM", sender, "TO", receiver, "OK")
+                window['_SERVER_'].print("s> SEND MESSAGE", id, "OK")
         finally:
             print("closing connection")
             conn.close()
@@ -101,7 +98,7 @@ class client :
             message = "REGISTER\0" + user + "\0" + client._username + "\0"+ client._date + "\0"
             s.sendall(message.encode("utf-8"))
         finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
+            result = int.from_bytes(s.recv(1), byteorder='little')
         s.close()
 
         if (result == 0):
@@ -127,7 +124,7 @@ class client :
             message = "UNREGISTER\0" + user + "\0"
             s.sendall(message.encode("utf-8"))
         finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
+            result = int.from_bytes(s.recv(1), byteorder='little')
             s.close()
         if (result == 0):
             window['_SERVER_'].print("s> UNREGISTER OK")
@@ -167,7 +164,7 @@ class client :
             
         finally:
             # check if there are messages by receiving the first integer
-            result = readNumber(s)
+            result = int.from_bytes(s.recv(1), byteorder='little')
             s.close()
         if (result == 0):
             window['_SERVER_'].print("s> CONNECT OK")
@@ -201,7 +198,7 @@ class client :
             s.sendall(b'\0')
          
         finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
+            result = int.from_bytes(s.recv(1), byteorder='little')
             s.close()
             
         if (result == 0):
@@ -228,7 +225,7 @@ class client :
         s.connect((client._server, client._port))
         try:
             # comando
-            s.sendall(b'SEND_MESSAGE\0')
+            s.sendall(b'SEND\0')
             # usuario emisor
             s.sendall((client._alias).encode("utf-8"))
             # port and ip vacio
@@ -243,7 +240,7 @@ class client :
             #receive message id from socket
             id = int.from_bytes(s.recv(4), byteorder='little')
         finally:
-            result = int.from_bytes(s.recv(4), byteorder='little')
+            result = int.from_bytes(s.recv(1), byteorder='little')
             s.close()
 
         if (result == 0):
@@ -275,7 +272,7 @@ class client :
         s.connect((client._server, client._port))
         try:
             # comando
-            s.sendall(b'SEND_MESSAGE\0')
+            s.sendall(b'SEND\0')
             # usuario emisor
             s.sendall((client._alias).encode("utf-8"))
             # port and ip vacio
@@ -327,7 +324,7 @@ class client :
                 string += readMessage(s)
                 while i < num_users:
                     user = readMessage(s)
-                    strint += ",  " + user
+                    string += ",  " + user
                     i += 1
             s.close()
 

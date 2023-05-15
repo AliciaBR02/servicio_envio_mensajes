@@ -115,7 +115,7 @@ void process_message(petition_t *pet) {
         }
         res = disconnection(user);
         free(user);
-    } else if (strcmp("SEND_MESSAGE", pet_local.op) == 0) {
+    } else if (strcmp("SEND", pet_local.op) == 0) {
 
         char *user = malloc(256);
         char *receiver = malloc(256);
@@ -256,7 +256,6 @@ int main(int argc, char *argv[]) {
 
     
     while (1) {
-        dprintf(1, "waiting for conection...\n");
         // accept connection
         sc = accept(sd, (struct sockaddr *) &client_addr, &size);
         if (sc == -1) {
@@ -264,8 +263,6 @@ int main(int argc, char *argv[]) {
             close(sc);
             return -1;
         }
-        dprintf(1, "conection accepted\n");
-        dprintf(1, "client ip: %s\n", inet_ntoa(client_addr.sin_addr));
 
         // receive data
         // first parameter

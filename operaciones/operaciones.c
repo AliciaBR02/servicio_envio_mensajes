@@ -217,6 +217,7 @@ int change_state(char *alias, int state, char *ip, char *port) {
     if (f2 == NULL) {
         perror("server-fileopen: write\n");
         free(filename);
+        fclose(f);
         return 2;
     }
     char *line = NULL;
@@ -325,9 +326,6 @@ int establish_connection(char *ip, char *port) {
 		perror("connect");
 		return -1;
 	}
-    // print the ip and port of the user
-    dprintf(1, "IP: %s\n", ip);
-    dprintf(1, "Puerto: %s\n", port);
     return sd;
 }
 
@@ -401,6 +399,7 @@ int messages_connected_user(char *receiver) {
         perror("server-fileopen: write\n");
         free(filename);
         free(tempuser);
+        fclose(f);
         return 2;
     }
     while ((read = getline(&line, &len, f)) != -1) {
@@ -416,21 +415,41 @@ int messages_connected_user(char *receiver) {
         err = is_connected(message->from);
         if (err == 0) {
             // do nothing
+            fprintf(f2, "%s", line);
             continue;
         }
         // send message to receiver
         err = send_message_to_receiver(receiver, message->from);
         if (err != 0) {
-            free(filename);
-            free(tempuser);
-            free(line);
-            free(message);
-            fclose(f);
-            fclose(f2);
-            return 2;
+            fprintf(f2, "%s", line);
+            break;
         }
     }
-
+    while ((read = getline(&line, &len, f)) != -1) {
+        fprintf(f2, "%s", line);
+    }
+    err = remove(filename);
+    if (err != 0) {
+        free(filename);
+        free(tempuser);
+        free(line);
+        free(message);
+        fclose(f);
+        fclose(f2);
+        return 2;
+    }
+    err = rename(tempuser, filename);
+    if (err != 0) {
+        free(filename);
+        free(tempuser);
+        free(line);
+        free(message);
+        fclose(f);
+        fclose(f2);
+        return 2;
+    }
+    fclose(f);
+    fclose(f2);
     return 0;
 }
 int connection(char *alias, char *port_and_ip, int socket) {
@@ -472,7 +491,6 @@ int connection(char *alias, char *port_and_ip, int socket) {
         free(port);
         return err;
     }
-    dprintf(1, "after reading messages\n");
     return err;
 }
 
@@ -653,19 +671,20 @@ int send_message_to_receiver(char *receiver, char *sender) {
     size_t len = 0;
     ssize_t read;
     int flag, flag2 = 0;
-    char c;
-    char *buffer = malloc(1024);
 
     f = fopen(filename, "r");
     if (f == NULL) {
         perror("server-fileopen: read\n");
         free(filename);
+        free(tempuser);
         return 2;
     }
     f2 = fopen(tempuser, "w");
     if (f2 == NULL) {
         perror("server-fileopen: write\n");
         free(filename);
+        free(tempuser);
+        fclose(f);
         return 2;
     }
     while (read = getline(&line, &len, f) != -1) {
@@ -687,15 +706,15 @@ int send_message_to_receiver(char *receiver, char *sender) {
                 flag = 1;
                 break;
             }
-            err = sendMessage(socket_receiver, (char *)&(message->id), 1);
+            strcat(message->from, "\0");
+            dprintf(1, "from %s\n", message->from);
+            err = sendMessage(socket_receiver, message->from, 256);
             if (err != 0) {
                 close(socket_receiver);
                 flag = 1;
                 break;
             }
-            strcat(message->from, "\0");
-            dprintf(1, "from %s\n", message->from);
-            err = sendMessage(socket_receiver, message->from, 256);
+            err = sendMessage(socket_receiver, (char *)&(message->id), 1);
             if (err != 0) {
                 close(socket_receiver);
                 flag = 1;
@@ -754,7 +773,6 @@ int send_message_to_receiver(char *receiver, char *sender) {
         perror("server: remove");
         free(filename);
         free(tempuser);
-        free(line);
         fclose(f);
         fclose(f2);
         close(socket_receiver);
@@ -765,7 +783,6 @@ int send_message_to_receiver(char *receiver, char *sender) {
         perror("server: rename");
         free(filename);
         free(tempuser);
-        free(line);
         fclose(f);
         fclose(f2);
         close(socket_receiver);
@@ -776,7 +793,6 @@ int send_message_to_receiver(char *receiver, char *sender) {
     fclose(f2);
     free(filename);
     free(tempuser);
-    free(line);
     free(message);
     return 0;
 }
@@ -809,20 +825,28 @@ int connected_users(char *user, int socket) {
     //count_connected, read_connected, return 0
     res = count_connected();
     err = sendMessage(socket, (char *)&res, sizeof(int));
-    if (err != 0) return 2;
+    if (err != 0) {
+        free(username);
+        return 2;
+    }
     f = fopen(filename, "r");
     if (f == NULL) {
         perror("server-fileopen: read\n");
+        free(username);
         return 2;
     }
     while ((read = getline(&line, &len, f)) != -1) {
         sscanf(line, "%s\n", username);
+        dprintf(1, "username %s\n", username);
+        strcat(username, "\0");
         err = sendMessage(socket, username, 256);
         if (err != 0) {
             fclose(f);
-            free(line);
+            free(username);
             return 2;
         }
     }
+    fclose(f);
+    free(username);
     return 0;
 }
