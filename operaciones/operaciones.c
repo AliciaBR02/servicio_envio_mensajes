@@ -366,6 +366,8 @@ int create_socket(char *user) {
         perror("server: establish_connection");
         return -1;
     }
+    dprintf(1, "ip %s\n", ip);
+    dprintf(1, "port %s\n", port);
     free(ip);
     free(port);
     free(filename);
@@ -418,8 +420,21 @@ int messages_connected_user(char *receiver) {
     }
     // check message by message if the sender is connected
     message_t *message = malloc(sizeof(message_t));
+    char *token = malloc(256);
     while ((read = getline(&line, &len, f)) != -1) {
-        sscanf(line, "%d: %s | %s", &message->id, message->from, message->message);
+        memset(message->from, 0, 256);
+        memset(message->message, 0, 256);
+        token = strtok(line, ":");
+        message->id = atoi(token);
+        token = strtok(NULL, "|");
+        strcpy(message->from, token);
+        token = strtok(NULL, "\n");
+        strcpy(message->message, token);
+        dprintf(1, "id %d\n", message->id);
+        dprintf(1, "from %s\n", message->from);
+        dprintf(1, "message %s\n", message->message);
+        strcat(message->from, "\0");
+        strcat(message->message, "\0");
         // send message to receiver
         err = sendMessage(socket_receiver, "SEND_MESSAGE", strlen("SEND_MESSAGE") + 1);
         if (err != 0) {
@@ -429,7 +444,7 @@ int messages_connected_user(char *receiver) {
         }
         strcat(message->from, "\0");
         dprintf(1, "from %s\n", message->from);
-        err = sendMessage(socket_receiver, message->from, 256);
+        err = sendMessage(socket_receiver, message->from, strlen(message->from) + 1);
         if (err != 0) {
             close(socket_receiver);
             flag = 1;
@@ -442,10 +457,7 @@ int messages_connected_user(char *receiver) {
             break;
         }
         // set message to 0
-        memset(message->message, 0, 256);
-        strcat(message->message, "\0");
-        dprintf(1, "message %s\n", message->message);
-        err = sendMessage(socket_receiver, message->message, 256);
+        err = sendMessage(socket_receiver, message->message, strlen(message->message) + 1);
         if (err != 0) {
             close(socket_receiver);
             flag = 1;
@@ -789,11 +801,18 @@ int manage_sent_message(char *receiver, char *sender, char *text) {
         }
     }
     message_t *message = malloc(sizeof(message_t));
+    char *token = malloc(256);
     while (read = getline(&line, &len, f) != -1) {
-        dprintf(1, "LINE %s\n", line);
         if (strstr(line, sender) != NULL) {
             // id: from "message"
-            sscanf(line, "%d: %s | %s", &message->id, message->from, message->message);
+            memset(message->from, 0, 256);
+            memset(message->message, 0, 256);
+            token = strtok(line, ":");
+            message->id = atoi(token);
+            token = strtok(NULL, "|");
+            strcpy(message->from, token);
+            token = strtok(NULL, "\n");
+            strcpy(message->message, token);
             dprintf(1, "id %d\n", message->id);
             dprintf(1, "from %s\n", message->from);
             dprintf(1, "message %s\n", message->message);
@@ -805,8 +824,6 @@ int manage_sent_message(char *receiver, char *sender, char *text) {
                 flag = 1;
                 break;
             }
-            strcat(message->from, "\0");
-            dprintf(1, "from %s\n", message->from);
             err = sendMessage(socket_receiver, message->from, strlen(message->from) + 1);
             if (err != 0) {
                 close(socket_receiver);
@@ -819,10 +836,6 @@ int manage_sent_message(char *receiver, char *sender, char *text) {
                 flag = 1;
                 break;
             }
-            // set message to 0
-            memset(message->message, 0, 256);
-            strcat(message->message, "\0");
-            dprintf(1, "message %s\n", message->message);
             err = sendMessage(socket_receiver, message->message, strlen(message->message) + 1);
             if (err != 0) {
                 close(socket_receiver);

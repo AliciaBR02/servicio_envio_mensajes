@@ -37,6 +37,8 @@ def client_connection(socket_connected, window):
             elif operation == "SEND_MESS_ACK":
                 id = int.from_bytes(conn.recv(1), byteorder='little')
                 window['_SERVER_'].print("s> SEND MESSAGE", id, "OK")
+        except:
+            ...
         finally:
             # print("closing connection")
             # conn.close()
@@ -239,7 +241,8 @@ class client :
             s.sendall(user.encode("utf-8"))
             s.sendall(b'\0')
             # mensaje
-            s.sendall((message).encode("utf-8"))
+            transformation = soap.service.transform_string(message)
+            s.sendall((transformation).encode("utf-8"))
             s.sendall(b'\0')
 
             #receive message id from socket
