@@ -1,7 +1,0 @@
-Nombre:    a 
-Alias:    a 
-Fecha de nacimiento:    21/05/2023
-Estado: conectado
-IP: 192.168.1.45
-Puerto: 58993
-Mensajes:   

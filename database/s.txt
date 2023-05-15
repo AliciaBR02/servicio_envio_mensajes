@@ -1,7 +1,0 @@
-Nombre: s 
-Alias: s 
-Fecha de nacimiento: 28/05/2023
-Estado: desconectado
-IP:
-Puerto:
-Mensajes:
